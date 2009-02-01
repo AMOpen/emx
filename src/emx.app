@@ -6,7 +6,11 @@
   {modules, []},
   {registered,[]},
   {applications, [kernel,stdlib]},
-  {env, []},
+  {env, [
+   	{logdir, '~s'},
+	{logsize, 5000000 },
+	{logtags, [debug, info, error]}
+	]},
   {mod, {emx_app,[]}},
   {start_phases, []}
  ]}.
