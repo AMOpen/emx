@@ -31,8 +31,18 @@ create_type(Type) when is_record(Type, emxtypeinfo) ->
 			),
 
 	mnesia:transaction(fun() -> mnesia:write(Type) end),
+	DefaultIndexRecord = #emxindexinfo{ indexname = list_to_atom("def" + Type#emxtypeinfo.typename),
+					    description = "Default Index for Type " ++ Type#emxtypeinfo.typename,
+					    fielddefinition = get_standard_fielddef(Type),
+					    typemappings = [ { Type#emxtypeinfo.typename, "/"}]},
+	util_emxindex:create_index(DefaultIndexRecord),
 	ok.
 
+get_standard_fielddef(#emxtypeinfo{ displayinfo = DisplayInfo}) ->
+	lists:foldl(fun(Entry, {Output, Count}) ->
+		{Output ++ [ {Entry, Count}], Count+1} end,
+		{[], 0}, DisplayInfo).
+		
 get_table_name(content, Prefix) ->
 	list_to_atom(util_string:format("emxc~p", [Prefix]));
 get_table_name(header, Prefix) ->
