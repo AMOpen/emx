@@ -48,7 +48,8 @@ init([]) ->
 			{Module, start_link, [Args]},
 			permanent, 10000, worker, [Module] } end,
 			[ 
-			  util_flogger]),
+			  util_flogger,
+			  emx_admin]),
 			
     {ok, {{one_for_one, 3, 1}, ModuleArray}}.
 
