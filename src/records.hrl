@@ -6,11 +6,20 @@
 
 %% type information
 
--record(emxtypeinfo, { typename, description, owner, tableprefix, tabletype, displaylength, keepversions }).
+-record(emxtypeinfo, { typename, description, owner, tableprefix, tabletype, displayinfo, keepversions }).
+
+%% Here's a sample of the above
+%% { "system.config", "Configuration information", "alan", "sconfig", disc_only_copies, [ application, region, name ], true}
 
 %% index information
 
 -record(emxindexinfo, { indexname, tablename, description, fielddefinition, typemappings }).
+
+%% Here's a sample of the above
+%% { "system.config", emxisystemconfig, "Default index for system.config", [ { application, {displayname, 0}}, 
+%%										{region, {displayname, 1}},
+%%										{name, {displayname, 2}}], [ { "system.config", "/"}]}
+										
 
 %% fielddefinition in index information is an array of these
 
