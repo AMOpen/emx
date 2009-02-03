@@ -18,7 +18,8 @@ get_data(DisplayName, Version) ->
 			#emxheader{displayname = DisplayName, _ = '_'}),
     case HeaderRecord of
     	[] -> nodata;
-	[ Record | _] -> low_get_data(TypeInfo, DisplayName, Version, Record)
+	[ Record | _] -> Content = low_get_data(TypeInfo, DisplayName, Version, Record),
+			 Content#emxcontent{content = get_content(Content#emxcontent.content, TypeInfo#emxtypeinfo.compressionlevel, decompress)}	
     end.
     
 low_get_data(TypeInfo, DisplayName, latest, HeaderRecord) ->
@@ -110,4 +111,8 @@ passesTest(IndexRecord, { Key, eq, Value }) ->
 	proplists:get_value(Key, IndexRecord#icontent.indexdata) == Value.
 	
 get_content(RawString, CompressionLevel, compress) ->
-	RawString.
+	zlib:compress(RawString);
+	
+get_content(RawData, CompressionLevel, decompress) ->
+	zlib:uncompress(RawData).
+	
