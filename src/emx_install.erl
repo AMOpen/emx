@@ -31,5 +31,7 @@ setup_mnesia() ->
 								     [node()]}])])
 		  end,
 		  [{emxtypeinfo, record_info(fields, emxtypeinfo)},
-		   {emxindexinfo, record_info(fields, emxindexinfo)}]).
+		   {emxindexinfo, record_info(fields, emxindexinfo)},
+		   {emxheader, record_info(fields, emxheader)},
+		   {emxcontent, record_info(fields, emxcontent)}]).
 
