@@ -10,7 +10,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([create_type/1, put_data/1, get_data/2, perform_query/1]).
+-export([create_type/1, create_index/1, put_data/1, get_data/2, perform_query/1]).
 
 -include_lib("records.hrl").
 
@@ -38,6 +38,9 @@ code_change(_OldVsn, N, _Extra) -> {ok, N}.
 create_type(Type) when is_record(Type, emxtypeinfo) ->
     gen_server:call(?GD2, {createType, Type}, infinity).
 
+create_index(Index) when is_record(Index, emxindexinfo) ->
+    gen_server:call(?GD2, {createIndex, Index}, infinity).
+    
 put_data(Data) when is_record(Data, putcontent) ->
     gen_server:call(?GD2, {putData, Data}, infinity).
     
@@ -53,11 +56,19 @@ handle_call({createType, Type}, _From, N) ->
     %% Pass on to a util function
     {reply, {typeinfo, util_emxtype:create_type(Type)}, N};
     
+handle_call({createIndex, Index}, _From, N) ->
+    %% Pass on to a util function
+    {reply, {typeinfo, util_emxindex:create_index(Index)}, N};
+    
 handle_call({putData, Data}, _From, N) ->
-    {reply, {datainfo, util_emxdata:put_data(Data)}, N};
+    {Time, Result} = timer:tc(util_emxdata, put_data, [Data]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Put data ~p", [ Time/1000]),
+    {reply, {datainfo, Result}, N};
     
 handle_call({getData, DisplayName, Version}, _From, N) ->
-    {reply, {datainfo, util_emxdata:get_data(DisplayName, Version)}, N};
+    {Time, Result} = timer:tc(util_emxdata, get_data, [DisplayName, Version]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Get data ~p", [ Time/1000]),
+    {reply, {datainfo, Result}, N};
 
 handle_call({performQuery, Query}, _From, N) ->
     {reply, {queryinfo, util_emxdata:perform_query(Query)}, N}.

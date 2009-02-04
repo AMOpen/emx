@@ -4,8 +4,8 @@
 -record(putcontent, { displayname, version, content, writeuser, writetime }).
 
 %% A pair of these tables for each type
--record(emxcontent, { key, id, version, writetime, writeuser, content}).
--record(emxheader, { id, typename, latestversion, displayname }).
+-record(emxcontent, { displayname, version, writetime, writeuser, content}).
+-record(emxheader, { displayname , typename, latestversion }).
 
 %% type information
 
@@ -36,6 +36,6 @@
 %% contentkey is the key of the original data in the tcontent table, typename is that in the emxtypeinfo
 %% indexdata is an array of {atomkey, Value} pairs, where the atoms come from the typemappings in te exmindexinfo table
 
--record(icontent, { key, typename, id, version, indexdata }).
+-record(icontent, { displayname, typename, version, indexdata }).
 
 

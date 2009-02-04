@@ -21,17 +21,21 @@ clean() ->
 	setup_mnesia().
 	
 setup_mnesia() ->
-    lists:foreach(fun ({RecordName, Fields}) ->
+    lists:foreach(fun ({RecordName, Fields, Indices}) ->
+    			  io:format("Record name is ~p~n", [ RecordName]),
+			  io:format("Fields are ~p~n", [ Fields] ),
+			  io:format("Indices are ~p~n", [ Indices]),
 			  util_flogger:logMsg(self(), ?MODULE, debug,
 					      "CreateTable ~p",
 					      [mnesia:create_table(RecordName,
-								   [{attributes,
-								     Fields},
+								   [
+								   {attributes,Fields},								     
+								   { index, Indices },								    
 								    {disc_only_copies,
 								     [node()]}])])
 		  end,
-		  [{emxtypeinfo, record_info(fields, emxtypeinfo)},
-		   {emxindexinfo, record_info(fields, emxindexinfo)},
-		   {emxheader, record_info(fields, emxheader)},
-		   {emxcontent, record_info(fields, emxcontent)}]).
+		  [{emxtypeinfo, record_info(fields, emxtypeinfo), [tabletype]},
+		   {emxindexinfo, record_info(fields, emxindexinfo), [tablename]},
+		   {emxheader, record_info(fields, emxheader), [ typename] },
+		   {emxcontent, record_info(fields, emxcontent), [ version]}]).
 

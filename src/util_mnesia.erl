@@ -8,7 +8,7 @@
 -export([do/1, doLimit/2, forAll/2, forAll/3,
 	 forAllMax/3, forAllRemove/4, getAllData/2, getData/2,
 	 transformAndGet/5, transformData/4,
-	 transformDataAll/4]).
+	 transformDataAll/4, getByKey/2, getAllByKey/2]).
 
 do(Q) ->
     F = fun () -> qlc:e(Q) end,
@@ -70,6 +70,26 @@ forAll(Table, MatchHead, Fun) ->
     {atomic, Val} = mnesia:transaction(F),
     Val.
 
+getByKey(Table, Key) ->
+	F = fun() ->
+		Result = mnesia:read({Table, Key}),
+		case Result of 
+			[] -> nodata;
+			[ Res | _ ] -> Res
+		end
+		end,
+    {Time, {atomic, Val}} = timer:tc(mnesia, transaction, [F]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "mnesia_getkey ~p", [ Time/1000]),    
+    Val.
+		
+getAllByKey(Table, Key) ->
+	F = fun() ->
+		Result = mnesia:read({Table, Key})
+		end,
+    {Time, {atomic, Val}} = timer:tc(mnesia, transaction, [F]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "mnesia_getkey ~p", [ Time/1000]),    
+    Val.
+		
 getData(Table, MatchHead) ->
     F = fun () ->
 		Result = mnesia:select(Table, [{MatchHead, [], ['$_']}],
@@ -80,7 +100,8 @@ getData(Table, MatchHead) ->
 		  true -> []
 		end
 	end,
-    {atomic, Val} = mnesia:transaction(F),
+    {Time, {atomic, Val}} = timer:tc(mnesia, transaction, [F]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "mnesia_getdata ~p", [ Time/1000]),    
     Val.
 
 getAllData(Table, MatchHead) ->

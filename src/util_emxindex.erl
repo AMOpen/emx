@@ -35,7 +35,7 @@ get_index_records(Content, TypeInfo, DisplayNameParts) when is_record(Content, e
 	%% form { indextablename, icontent }
 	%% The caller will then save them in a transaction...
 	IndexRecords = get_referenced_indices(TypeInfo),
-	io:format("Index records is ~p~n", [ IndexRecords]),
+	%% io:format("Index records is ~p~n", [ IndexRecords]),
 	%% Now, for each of the above, create new index records to return
 	lists:foldl(fun(IndexRecord, AccIn) ->
 			AccIn ++ [ get_indexrecord(IndexRecord, Content, TypeInfo, DisplayNameParts) ] 
@@ -44,7 +44,10 @@ get_index_records(Content, TypeInfo, DisplayNameParts) when is_record(Content, e
 			IndexRecords).
 
 generator({displayname, Count}, _IndexRecord, _Content, _TypeInfo, DisplayNameParts) ->
-	lists:nth(Count, DisplayNameParts).
+	lists:nth(Count, DisplayNameParts);
+	
+generator({xpath, Xpath}, IndexRecord, Content, TypeInfo, DisplayNameParts) ->
+	util_xml:go(Content#emxcontent.content, Xpath).
 	
 get_indexrecord(IndexRecord, Content, TypeInfo, DisplayNameParts) ->
 	IndexData = lists:foldl(fun({Key, Generator},AccIn) ->
@@ -55,10 +58,9 @@ get_indexrecord(IndexRecord, Content, TypeInfo, DisplayNameParts) ->
 	%% Need to fill in
 	Record = #icontent {
 			typename = TypeInfo#emxtypeinfo.typename,
-			id = Content#emxcontent.id,
+			displayname = Content#emxcontent.displayname,
 			version = Content#emxcontent.version,
-			indexdata = IndexData,
-			key = util_string:format("~s.~s", [ TypeInfo#emxtypeinfo.typename,Content#emxcontent.key]) 
+			indexdata = IndexData
 			},
 	{ IndexRecord#emxindexinfo.tablename, Record }.
 	
@@ -70,11 +72,11 @@ get_index(IndexName) ->
 	end.
 	
 get_referenced_indices(TypeInfo) when is_record(TypeInfo, emxtypeinfo) ->
-	AllRecords = util_mnesia:getData(emxindexinfo, #emxindexinfo{ _ = '_' }),
-	io:format("All Records is ~p~n", [ AllRecords]),
+	AllRecords = util_mnesia:getAllData(emxindexinfo, #emxindexinfo{ _ = '_' }),
+	%%io:format("All index Records is ~p~n", [ AllRecords]),
 	lists:filter(fun(Record) -> 
 		lists:any(fun({ TypeName, _}) ->
-			io:format("Typename = ~p, Test against ~p~n", [ TypeName, TypeInfo#emxtypeinfo.typename]),
+			%%io:format("Typename = ~p, Test against ~p~n", [ TypeName, TypeInfo#emxtypeinfo.typename]),
 			TypeName == TypeInfo#emxtypeinfo.typename end, Record#emxindexinfo.typemappings) end,
 		AllRecords).
 			

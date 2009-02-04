@@ -13,25 +13,22 @@
 
 get_data(DisplayName, Version) ->
     [Protocol, TypeName | DisplayNameParts] = string:tokens(DisplayName, "/"),
-    TypeInfo = util_emxtype:load_type_information(TypeName),
-    HeaderRecord = util_mnesia:getData(emxheader, 
-			#emxheader{displayname = DisplayName, _ = '_'}),
-    case HeaderRecord of
-    	[] -> nodata;
-	[ Record | _] -> Content = low_get_data(TypeInfo, DisplayName, Version, Record),
-			 Content#emxcontent{content = get_content(Content#emxcontent.content, TypeInfo#emxtypeinfo.compressionlevel, decompress)}	
-    end.
+    %% NB getByKey is blindingly fast compared to select
+    HeaderRecord = util_mnesia:getByKey(emxheader, DisplayName),
+    Content = low_get_data(DisplayName, Version, HeaderRecord),
+    Content#emxcontent{content = get_content(Content#emxcontent.content, decompress)}.	
     
-low_get_data(TypeInfo, DisplayName, latest, HeaderRecord) ->
-	low_get_data(TypeInfo, DisplayName, HeaderRecord#emxheader.latestversion, HeaderRecord);
+low_get_data(DisplayName, latest, HeaderRecord) ->
+    low_get_data(DisplayName, HeaderRecord#emxheader.latestversion, HeaderRecord);
 
-low_get_data(TypeInfo, DisplayName, Version, HeaderRecord) ->
-   io:format("Looking for ~p and ~p~n", [HeaderRecord#emxheader.id, Version]),
-   ExistingRecord = util_mnesia:getData(emxcontent,
-   			#emxcontent{id = HeaderRecord#emxheader.id, version = Version, _ = '_'}),
-   case ExistingRecord of
-   	[] -> baddataversion;
-	[ Record | _] -> Record
+low_get_data(DisplayName, Version, HeaderRecord) ->
+   %%io:format("Looking for ~p and ~p~n", [HeaderRecord#emxheader.id, Version]),
+   ExistingRecords = util_mnesia:getAllByKey(emxcontent, DisplayName),
+   io:format("Existing records ~p, looking for version ~p~n", [ ExistingRecords, Version]),
+   Output = lists:filter(fun(Record) -> Record#emxcontent.version == Version end, ExistingRecords),
+   case Output of 
+   	[] -> nodata;
+	[ Rec | _] -> Rec
    end.
 
 put_data(Data) when is_record(Data, putcontent) ->
@@ -39,38 +36,37 @@ put_data(Data) when is_record(Data, putcontent) ->
 %% The key in the record is the item after the type name, look to see if there is already
 %% data for that key. If so, update the version and save the content, if not, this is version 1
         [Protocol, TypeName | DisplayNameParts] = string:tokens(Data#putcontent.displayname, "/"),
-	io:format("Protocol is ~p, TypeName is ~p, DisplayNameParts is ~p~n", [ Protocol, TypeName, DisplayNameParts]),
+	%%io:format("Protocol is ~p, TypeName is ~p, DisplayNameParts is ~p~n", [ Protocol, TypeName, DisplayNameParts]),
 	TypeInfo = util_emxtype:load_type_information(TypeName),
-	io:format("Type information is ~p~n", [ TypeInfo]),
+	%%io:format("Type information is ~p~n", [ TypeInfo]),
 	%% Attempt to locate the record in the header table
-	ExistingRecord = util_mnesia:getData(emxheader, 
-			#emxheader{displayname = Data#putcontent.displayname, _ = '_'}),
-	io:format("Existing record is ~p~n", [ ExistingRecord ]),
+	ExistingRecord = util_mnesia:getByKey(emxheader,Data#putcontent.displayname), 
 	case ExistingRecord of
-		[] ->
+		nodata ->
 				%% no record
-				NewTypeRecord = TypeInfo#emxtypeinfo { latestid = TypeInfo#emxtypeinfo.latestid + 1},
-				NewHeader = #emxheader{ id = NewTypeRecord#emxtypeinfo.latestid,
+				NewHeader = #emxheader{ 
 						      latestversion = 1,
 						      typename = TypeName,
-						      displayname = Data#putcontent.displayname},
-				mnesia:transaction(fun() -> mnesia:write(NewTypeRecord) end );
-		[ HeaderRecord | _ ] ->
-				NewHeader = HeaderRecord#emxheader { latestversion = HeaderRecord#emxheader.latestversion + 1 }
+						      displayname = Data#putcontent.displayname};
+		_  ->
+				NewHeader = ExistingRecord#emxheader { latestversion = ExistingRecord#emxheader.latestversion + 1 }
 	end,
 	%% Now create the content record
-	NewContent = #emxcontent { id = NewHeader#emxheader.id,
+	
+	UncompressedContent = #emxcontent { displayname = NewHeader#emxheader.displayname,
 				 version = NewHeader#emxheader.latestversion,
-				 key = util_string:format("~p.~p", [ NewHeader#emxheader.id, NewHeader#emxheader.latestversion]),
 				 writetime = Data#putcontent.writetime,
 				 writeuser = Data#putcontent.writeuser,
-				 content = get_content(Data#putcontent.content, TypeInfo#emxtypeinfo.compressionlevel, compress) 
+				 content = Data#putcontent.content 
+				},
+				
+	NewContent = UncompressedContent#emxcontent { content = get_content(Data#putcontent.content, compress) 
 				},
 				
 	%% Now generate the index information for this content
 	
-	IndexRecords = util_emxindex:get_index_records(NewContent, TypeInfo, DisplayNameParts),
-	io:format("Index records is ~p~n", [ IndexRecords]),
+	IndexRecords = util_emxindex:get_index_records(UncompressedContent, TypeInfo, DisplayNameParts),
+	%%io:format("Index records is ~p~n", [ IndexRecords]),
 	mnesia:transaction(fun() ->
 			mnesia:write(NewHeader),
 			mnesia:write(NewContent),
@@ -92,7 +88,7 @@ get_query_data( { xand, Tests }) ->
 get_query_data( { index, IndexName, Test } ) ->
 	%% Look in the index given for content that matches the given test, but only for the latest version
 	Index = util_emxindex:get_index(IndexName),
-	io:format("Index is ~p~n", [ Index ]),
+	%% io:format("Index is ~p~n", [ Index ]),
 	%% That gives us the table to qlc against to get the latest version
 	%% Our query is initially
 	%% theader.id == index.id && theader.latestversion == index.version
@@ -102,7 +98,7 @@ get_query_data( { index, IndexName, Test } ) ->
 							   [{lock, read},
 							    {n_objects, 1000}]),
 					Y <- mnesia:table(emxheader),
-					X#icontent.id =:= Y#emxheader.id,
+					X#icontent.displayname =:= Y#emxheader.displayname,
 					X#icontent.version =:= Y#emxheader.latestversion,
 					passesTest(X, Test)
 					])).	
@@ -110,9 +106,9 @@ get_query_data( { index, IndexName, Test } ) ->
 passesTest(IndexRecord, { Key, eq, Value }) ->
 	proplists:get_value(Key, IndexRecord#icontent.indexdata) == Value.
 	
-get_content(RawString, CompressionLevel, compress) ->
+get_content(RawString, compress) ->
 	zlib:compress(RawString);
 	
-get_content(RawData, CompressionLevel, decompress) ->
+get_content(RawData, decompress) ->
 	zlib:uncompress(RawData).
 	

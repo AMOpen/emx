@@ -49,7 +49,8 @@ init([]) ->
 			permanent, 10000, worker, [Module] } end,
 			[ 
 			  util_flogger,
-			  emx_admin]),
+			  emx_admin,
+			  emx_restserver]),
 			
     {ok, {{one_for_one, 3, 1}, ModuleArray}}.
 
