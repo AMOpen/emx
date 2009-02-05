@@ -14,16 +14,17 @@
 get_data(DisplayName, Version) ->
     [Protocol, TypeName | DisplayNameParts] = string:tokens(DisplayName, "/"),
     %% NB getByKey is blindingly fast compared to select
-    HeaderRecord = util_mnesia:getByKey(emxheader, DisplayName),
+    HeaderRecord = util_dets:getByKey(emxheader, DisplayName),
+    io:format("Header is ~p~n", [ HeaderRecord]),
     Content = low_get_data(DisplayName, Version, HeaderRecord),
-    Content#emxcontent{content = get_content(Content#emxcontent.content, decompress)}.	
+    Content#emxcontent{content = get_content(util_bfile:load_content(DisplayName), decompress)}.	
     
 low_get_data(DisplayName, latest, HeaderRecord) ->
     low_get_data(DisplayName, HeaderRecord#emxheader.latestversion, HeaderRecord);
 
 low_get_data(DisplayName, Version, HeaderRecord) ->
    %%io:format("Looking for ~p and ~p~n", [HeaderRecord#emxheader.id, Version]),
-   ExistingRecords = util_mnesia:getAllByKey(emxcontent, DisplayName),
+   ExistingRecords = util_dets:getAllByKey(emxcontent, DisplayName),
    io:format("Existing records ~p, looking for version ~p~n", [ ExistingRecords, Version]),
    Output = lists:filter(fun(Record) -> Record#emxcontent.version == Version end, ExistingRecords),
    case Output of 
@@ -37,10 +38,11 @@ put_data(Data) when is_record(Data, putcontent) ->
 %% data for that key. If so, update the version and save the content, if not, this is version 1
         [Protocol, TypeName | DisplayNameParts] = string:tokens(Data#putcontent.displayname, "/"),
 	%%io:format("Protocol is ~p, TypeName is ~p, DisplayNameParts is ~p~n", [ Protocol, TypeName, DisplayNameParts]),
-	TypeInfo = util_emxtype:load_type_information(TypeName),
+	%% TypeInfo = util_emxtype:load_type_information(TypeName),
 	%%io:format("Type information is ~p~n", [ TypeInfo]),
 	%% Attempt to locate the record in the header table
-	ExistingRecord = util_mnesia:getByKey(emxheader,Data#putcontent.displayname), 
+	ExistingRecord = util_dets:getByKey(emxheader,Data#putcontent.displayname), 
+	io:format("Existing record is ~p~n", [ ExistingRecord]),
 	case ExistingRecord of
 		nodata ->
 				%% no record
@@ -53,27 +55,44 @@ put_data(Data) when is_record(Data, putcontent) ->
 	end,
 	%% Now create the content record
 	
-	UncompressedContent = #emxcontent { displayname = NewHeader#emxheader.displayname,
+	%% We need to store the actual content in a file...? (So it is not indexed/loaded by mnesia?)
+	
+	Content = #emxcontent { displayname = NewHeader#emxheader.displayname,
 				 version = NewHeader#emxheader.latestversion,
 				 writetime = Data#putcontent.writetime,
-				 writeuser = Data#putcontent.writeuser,
-				 content = Data#putcontent.content 
+				 writeuser = Data#putcontent.writeuser
+				 %%content = Data#putcontent.content 
 				},
 				
-	NewContent = UncompressedContent#emxcontent { content = get_content(Data#putcontent.content, compress) 
-				},
+	util_bfile:save_content(NewHeader#emxheader.displayname, get_content(Data#putcontent.content, compress)), 
 				
 	%% Now generate the index information for this content
 	
-	IndexRecords = util_emxindex:get_index_records(UncompressedContent, TypeInfo, DisplayNameParts),
+	%%{Time, IndexRecords} = timer:tc(util_emxindex,get_index_records,[UncompressedContent, TypeInfo, DisplayNameParts]),
+	%%util_flogger:logMsg(self(), ?MODULE, debug, "Time for get index is ~p", [Time/1000]),
 	%%io:format("Index records is ~p~n", [ IndexRecords]),
-	mnesia:transaction(fun() ->
-			mnesia:write(NewHeader),
-			mnesia:write(NewContent),
-			lists:foreach(fun({Table, IndexRecord}) ->
-				mnesia:write(Table, IndexRecord, write) end
-				, IndexRecords)
-			end),			
+	
+	io:format("Now saving~n"),
+	util_dets:saveByKey(emxheader, NewHeader),
+	util_dets:saveByKey(emxcontent, Content),
+	io:format("Now saving~n"),
+	
+%%	WriteFun = fun() ->
+%%			mnesia:write(NewHeader),
+%%			mnesia:write(Content)
+	%%		lists:foreach(fun({Table, IndexRecord}) ->
+	%%			mnesia:write(Table, IndexRecord, write) end
+	%%			, IndexRecords)
+%%			end,
+%%	DirtyWriteFun = fun() ->
+%%			mnesia:dirty_write(NewHeader),
+%%			mnesia:dirty_write(Content)
+	%%		lists:foreach(fun({Table, IndexRecord}) ->
+	%%			mnesia:dirty_write(Table, IndexRecord) end
+	%			, IndexRecords)
+%%			end,			
+%%	{Time2, _Val} = timer:tc(mnesia,transaction,[DirtyWriteFun]),			
+%%	util_flogger:logMsg(self(), ?MODULE, debug, "Write records is ~p", [Time2/1000]),
 	ok.
 	
 perform_query(Query) ->

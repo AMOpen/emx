@@ -62,7 +62,7 @@ handle_call({createIndex, Index}, _From, N) ->
     
 handle_call({putData, Data}, _From, N) ->
     {Time, Result} = timer:tc(util_emxdata, put_data, [Data]),
-    util_flogger:logMsg(self(), ?MODULE, debug, "Put data ~p", [ Time/1000]),
+    io:format( "Put data ~p with ~p", [ Time/1000, Result]),
     {reply, {datainfo, Result}, N};
     
 handle_call({getData, DisplayName, Version}, _From, N) ->

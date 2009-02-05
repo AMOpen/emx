@@ -31,7 +31,7 @@ start_link([]) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    mnesia:start(),
+    %%mnesia:start(),
     util_flogger:logMsg(self(), ?MODULE, debug,
 			"EMX starting, waiting for mnesia"),
     Args = [],
