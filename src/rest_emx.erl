@@ -26,17 +26,9 @@ handle_tokenRequest('POST',
 	  RealQueryData = convertData(Vars),
 	  DisplayName = proplists:get_value(displayName, RealQueryData),
 	  util_flogger:logMsg(self(), ?MODULE, debug, "Store ~p", [ DisplayName]),
-	  Data = #putcontent
-	  	{
-		 displayname = DisplayName,
-		 content = proplists:get_value(xml, RealQueryData),
-		 writeuser = alan,
-		 writetime = calendar:universal_time()
-		 },
-	  Response = emx_admin:put_data(Data),
-    util_yaws:make_response(200,
+	  util_yaws:make_response(200,
 			    util_string:format("<response>~p</response>",
-							[Response]));
+							["Hello"]));
 handle_tokenRequest(_A, _B, _C) ->
     util_flogger:logMsg(self(), ?MODULE, debug, "Invalid request", []),
     util_yaws:make_response(200, "<error/>").

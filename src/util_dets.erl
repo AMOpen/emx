@@ -22,6 +22,6 @@ saveByKey(TableName, Content) ->
 	dets:insert(TableName, Content).
 	
 open_table(TableName) ->
-	dets:open_file(TableName, [{keypos, 2}]).
+	dets:open_file(TableName, [{keypos, 2},{file, "c:\\clouddata\\" ++ TableName}]).
 	
 	
