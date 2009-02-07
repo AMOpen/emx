@@ -51,7 +51,8 @@ init([]) ->
 			  util_flogger,
 			  emx_admin,
 			  emx_restserver,
-			  emx_data]),
+			  emx_data,
+			  job_housekeep]),
 			
     {ok, {{one_for_one, 3, 1}, ModuleArray}}.
 

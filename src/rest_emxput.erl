@@ -1,4 +1,4 @@
--module(rest_emx).
+-module(rest_emxput).
 
 -export([handle_tokenRequest/3, out/1]).
 
@@ -26,9 +26,10 @@ handle_tokenRequest('POST',
 	  RealQueryData = convertData(Vars),
 	  DisplayName = proplists:get_value(displayName, RealQueryData),
 	  util_flogger:logMsg(self(), ?MODULE, debug, "Store ~p", [ DisplayName]),
+	  Resp = emx_admin:put_data(DisplayName, proplists:get_value(xml, RealQueryData)),
 	  util_yaws:make_response(200,
 			    util_string:format("<response>~p</response>",
-							["Hello"]));
+							[Resp]));
 handle_tokenRequest(_A, _B, _C) ->
     util_flogger:logMsg(self(), ?MODULE, debug, "Invalid request", []),
     util_yaws:make_response(200, "<error/>").

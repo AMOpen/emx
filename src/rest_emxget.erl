@@ -15,9 +15,9 @@
 out(Arg) ->
     Req = Arg#arg.req,
     ReqPath = util_yaws:get_path(Req),
-    io:format("Path is ~p~n", [ ReqPath]),
+    %%io:format("Path is ~p~n", [ ReqPath]),
 
     DisplayName = string:join(lists:nthtail(2, string:tokens(ReqPath, "/")), "/"),
-    io:format("Display name is ~p~n", [ DisplayName]),
-    {datainfo, BackRecord} = emx_admin:get_data(DisplayName, latest),
+    %%io:format("Display name is ~p~n", [ DisplayName]),
+    {datainfo, BackRecord} = emx_admin:get_data(DisplayName),
     util_yaws:make_response(200, BackRecord#emxcontent.content).

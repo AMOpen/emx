@@ -1,41 +1,12 @@
 %% Records used in EMX
 
-%% Record involved in a put or a get
--record(putcontent, { displayname, version, content, writeuser, writetime }).
+%% Stored in a config (d)ets table
+-record(emxcontent, { displayname, writetime, writeuser, content}).
 
-%% A pair of these tables for each type
--record(emxcontent, { displayname, version, writetime, writeuser, content}).
--record(emxheader, { displayname , typename, latestversion }).
+%% Config for a store
+-record(emxstoreconfig, { typename, storagetype, storageoptions, extractcontent, tableid, capacityconstraints }).
 
-%% type information
 
--record(emxtypeinfo, { typename, description, owner, tableprefix, tabletype, displayinfo, keepversions, latestid, compressionlevel }).
 
-%% Here's a sample of the above
-%% { "system.config", "Configuration information", "alan", "sconfig", disc_only_copies, [ application, region, name ], true}
-
-%% index information
-
--record(emxindexinfo, { indexname, tablename, description, fielddefinition, typemappings }).
-
-%% Here's a sample of the above
-%% { "system.config", emxisystemconfig, "Default index for system.config", [ { application, {displayname, 0}}, 
-%%										{region, {displayname, 1}},
-%%										{name, {displayname, 2}}], [ { "system.config", "/"}]}
-										
-
-%% fielddefinition in index information is an array of these
-
--record(fielddef, { fieldname, generator }).
-
-%% typemappings in index information is an array of these
-
--record(typemap, { typename, xpathprefix }).
-
-%% An index is a table storing this type
-%% contentkey is the key of the original data in the tcontent table, typename is that in the emxtypeinfo
-%% indexdata is an array of {atomkey, Value} pairs, where the atoms come from the typemappings in te exmindexinfo table
-
--record(icontent, { displayname, typename, version, indexdata }).
 
 

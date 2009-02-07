@@ -40,8 +40,9 @@ set_conf([Host, Port, WorkingDir]) ->
     SC = #sconf{port = Port, servername = atom_to_list(Host),
 		listen = {0, 0, 0, 0}, docroot = "../www",
 		appmods =
-		    [{"/emx/put", rest_emx},
-		     {"/emx/get", rest_emxget}]},
+		    [{"/emx/put", rest_emxput},
+		     {"/emx/get", rest_emxget},
+		     {"/emx/getkeys", rest_emxgetkeys}]},
     case catch yaws_api:setconf(GC, [[SC]]) of
       ok -> {ok, started};
       Error -> {stop, Error}
