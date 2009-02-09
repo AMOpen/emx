@@ -152,6 +152,8 @@ getTableInfo(TableId, ConfigHandle) ->
 			end
 	end.
 
+%% The following functions are to handle the removal of data from a cache to keep it within certain constraints
+%% Constraints are by memory use, number of records or age of documents.
 
 run_constraints(TableConfig, []) ->
 	ok;
@@ -173,6 +175,7 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 				{ NewRecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
 				NewRecordCount > MaxCount
 				end, SortedList),
+			%% Run garbage collection after removing the data to ensure that future tests on memory use the correct figures
 			erlang:garbage_collect();				
 		false ->
 			nothingtodo
@@ -204,6 +207,8 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 			SortedList = get_all_sorted(TableConfig),
 			lists:takewhile(fun(Record) ->
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
+				%% Run garbage collect after deletion or the get_size method below will not return the correct
+				%% and up to date value. It makes the whole loop slower though
 				erlang:garbage_collect(),
 				{ _, NewMemory } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
 				NewMemory > MaxSize
@@ -211,6 +216,8 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 		false ->
 			nothingtodo
 	end.
+
+%% Get data from a table and sort it by age
 
 get_all_sorted(TableConfig) ->
 	UnsortedList = util_data:foldl(fun(Record, AccIn) -> AccIn ++ [ Record ] end, [], TableConfig#emxstoreconfig.tableid),

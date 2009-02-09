@@ -90,19 +90,19 @@ handle_cast(_Msg, N) -> {noreply, N}.
 handle_info(_Info, N) -> {noreply, N}.
 
 getTableInfo(TableId, ConfigHandle) ->
-	io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
+	%%io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
 	TableInfo = util_data:get_data(ConfigHandle, TableId),
-	io:format("Table info is ~p~n", [ TableInfo]),
+	%%io:format("Table info is ~p~n", [ TableInfo]),
 	case TableInfo of
 		[] ->
 			[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
-			io:format("Default table info is ~p~n", [ DefaultTableInfo]),
+			%%io:format("Default table info is ~p~n", [ DefaultTableInfo]),
 			NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
-			io:format("New Table Id is ~p~n", [ NewTableId]),
+			%%io:format("New Table Id is ~p~n", [ NewTableId]),
 			NewTableInfo = DefaultTableInfo#emxstoreconfig { typename = TableId, tableid = NewTableId },
-			io:format("Putting config data~n"),
+			%%io:format("Putting config data~n"),
 			util_data:put_data(ConfigHandle, NewTableInfo),
-			io:format("Returning~n"),
+			%%io:format("Returning~n"),
 			NewTableInfo#emxstoreconfig.tableid;
 		[ Info | _ ] ->
 			case Info#emxstoreconfig.tableid of

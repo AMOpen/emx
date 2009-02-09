@@ -4,6 +4,8 @@
 
 -export([save_content/2,load_content/1]).
 
+%% TODO hardcoded paths here
+
 save_content(Key, Content) ->
 	%% Assume Key can be converted to a filename
 	RealFile = "C:\\clouddata\\" ++ Key,
