@@ -48,8 +48,25 @@ init(_) ->
 	_ ->
 		ok
     end,
+    %% Also register interest in node information
+    {ok, Nodes} = application:get_env(nodes),
+    ThisNode = node(),
+    lists:foreach(fun(Node) ->
+    		case Node of
+			local -> nothing;
+			ThisNode -> nothing;
+			Node -> 
+				%% Attempt to populate the ConfigHandle from this node
+				populate_from_node(Node, ConfigHandle),
+				erlang:monitor_node(Node, true)
+		end
+		end, Nodes),
     {ok, ConfigHandle}.
 
+populate_from_node(Node, ConfigHandle) ->
+	Res = rpc:call(Node, emx_data, get_tables, []),
+	io:format("Response from populate_from_node is ~p~n", [ Res ]).
+	
 closer(Record, AccIn) ->
 	case Record#emxstoreconfig.tableid of
 		undefined -> AccIn;
@@ -160,9 +177,17 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	{ NewMaxEpoch, TestEpoch, NewKeys}.
 
 	
-handle_cast(_Msg, N) -> {noreply, N}.
+handle_cast(Msg, N) -> 
+	io:format("Received cast ~p~n", [ Msg ]),
+	{noreply, N}.
 
-handle_info(_Info, N) -> {noreply, N}.
+handle_info({nodedown, Node}, N) ->
+	io:format("Node ~p is down~n", [ Node]),
+	{noreply, N};
+	
+handle_info(Info, N) -> 
+	io:format("Received info ~p~n", [ Info ]),
+	{noreply, N}.
 	
 getTableInfo(TableId, ConfigHandle) ->
 	%%io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
