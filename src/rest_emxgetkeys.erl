@@ -3,15 +3,8 @@
 -export([out/1]).
 
 -include("../../yaws-1.77/include/yaws.hrl").
-
 -include("../../yaws-1.77/include/yaws_api.hrl").
-
 -include_lib("records.hrl").
-
--include_lib("xmerl/include/xmerl.hrl").
-
--include_lib("stdlib/include/qlc.hrl").
-
 -include_lib("eunit/include/eunit.hrl").
 
 out(Arg) ->

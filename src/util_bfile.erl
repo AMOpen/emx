@@ -6,13 +6,17 @@
 
 %% TODO hardcoded paths here
 
+get_real_file(Key) ->
+	{ok, DataDir } = application:get_env(datadir),
+	DataDir ++ Key.
+
 save_content(Key, Content) ->
 	%% Assume Key can be converted to a filename
-	RealFile = "C:\\clouddata\\" ++ Key,
+	RealFile = get_real_file(Key),
 	filelib:ensure_dir(RealFile),
 	file:write_file(RealFile, Content).
 	
 load_content(Key) ->
-	RealFile = "C:\\clouddata\\" ++ Key,
+	RealFile = get_real_file(Key),
 	{ok, Data } = file:read_file(RealFile),
 	Data.

@@ -10,6 +10,7 @@
    	{logdir, '~s'},
 	{logsize, 5000000 },
 	{logtags, [debug, info, error]},
+	{datadir, "c:\\clouddata" },
 	{webhost, localhost },
 	{webport, 8665 },
 	{weblogdir, "c:\\clouddata"},

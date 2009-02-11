@@ -40,31 +40,22 @@ checkStartup() ->
     gen_fsm:send_event(?GD2, ping).
 
 paused(start, {[], Dummy}) ->
-    %%	io:format("~p in state paused and starting~n", [?MODULE]),
     {next_state, stopped, {[], Dummy}, 20000};
 paused(timeout, State) ->
-    %%	io:format("~p in state paused, and checking timeout~n", [?MODULE]),
-    %% after a timeout we check our config again which returns the next state
     {next_state, stopped, State, 30000};
     
 paused(ping, State) ->
-    %%	io:format("~p in state paused, and checking ping~n", [?MODULE]),
     {next_state, stopped, State, 30000}.
 
 stopped(timeout, State) ->
     %% Spawn a thread to do the deliver run
-    %%	io:format("~p in state stopped and timeout~n", [?MODULE]),
-    %% Really need to check the state, as we could already be running?
     spawn(?MODULE, housekeep, []),
     {next_state, running, State}.
 
 running(finished, State) ->
-    %%	io:format("~p in state running and finished~n", [?MODULE]),
-    %% here we should clear the state
     {next_state, stopped, State, 30000}.
 
 housekeep() ->
-    %%io:format("Housekeeping~n"),
     emx_admin:housekeep(),
     gen_fsm:send_event(?GD2, finished).
 
