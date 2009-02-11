@@ -14,13 +14,15 @@
 
 %% Simple module to start and stop the cloud
 
-%% @spec start() -> ok
+
 %% @doc Start the ecloud application
+%% @spec start() -> ok
 
 start() ->
     application:start(emx).
 
-%% @spec stop() -> ok
+
 %% @doc Stop the ecloud application
+%% @spec stop() -> ok
 
 stop() -> application:stop(emx).

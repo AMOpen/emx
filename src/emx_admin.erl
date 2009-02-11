@@ -35,7 +35,7 @@ init(_) ->
     process_flag(trap_exit, true),
     {ok, []}.
 
-terminate(_Reason, ConfigHandle) ->
+terminate(_Reason, _ConfigHandle) ->
     ok.
 
 code_change(_OldVsn, N, _Extra) -> {ok, N}.
@@ -89,33 +89,4 @@ handle_cast(_Msg, N) -> {noreply, N}.
 
 handle_info(_Info, N) -> {noreply, N}.
 
-getTableInfo(TableId, ConfigHandle) ->
-	%%io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
-	TableInfo = util_data:get_data(ConfigHandle, TableId),
-	%%io:format("Table info is ~p~n", [ TableInfo]),
-	case TableInfo of
-		[] ->
-			%% THIS IS WHERE WE NEED TO WORK OUT AN APPROPRIATE PLACE TO PUT THE TABLE
-			%% WHICH MAY NOT BE THIS NODE
-			[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
-			%%io:format("Default table info is ~p~n", [ DefaultTableInfo]),
-			NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
-			%%io:format("New Table Id is ~p~n", [ NewTableId]),
-			NewTableInfo = DefaultTableInfo#emxstoreconfig { typename = TableId, tableid = NewTableId },
-			%%io:format("Putting config data~n"),
-			util_data:put_data(ConfigHandle, NewTableInfo),
-			%%io:format("Returning~n"),
-			NewTableInfo#emxstoreconfig.tableid;
-		[ Info | _ ] ->
-			case Info#emxstoreconfig.tableid of
-				undefined ->
-					TableId = util_data:get_handle(Info#emxstoreconfig.storagetype, Info#emxstoreconfig.storageoptions),
-					util_data:put_data(ConfigHandle, Info#emxstoreconfig{tableid = TableId}),
-					TableId;
-				Id ->
-					Id
-			end
-	end.
-					
-					
 			

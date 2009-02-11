@@ -58,7 +58,7 @@ convertData(RequestArray) ->
     %% the value will also be a string, we want to attempt to convert that depending on the prefix of the atom
     [convertData_1(V1) || V1 <- RequestArray].
 
-convertData_1({"xmlencode", Value}) when is_list(Value) ->
+convertData_1({"xmlencode", Value}) ->
     String = base64:mime_decode_to_string(replaceSpace(Value)),
     %%io:format("Decode is ~p~n", [ String ]),
     {xml, String};    
