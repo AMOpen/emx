@@ -1,5 +1,12 @@
+%% @author Alan Moore amkimian@mac.com
+%% @copyright 2008-2009 Alan Moore
+
+%% @doc Conversion utilities
+
 -module(util_conv).
 -include_lib("eunit/include/eunit.hrl").
+
+-author('Alan Moore <amkimian@mac.com>').
 
 -export([getFloatValue/1, getStringValue/1, getIntValue/1]).
 

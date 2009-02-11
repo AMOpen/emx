@@ -1,5 +1,5 @@
 %% @author Alan Moore amkimian@mac.com
-%% @copyright 2008 Alan Moore
+%% @copyright 2008-2009 Alan Moore
 %% @doc A logging utility class, formatting to a Flog standard
 %%      files will be rotated depending their size, defined in the
 %%      config.
