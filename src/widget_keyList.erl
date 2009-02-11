@@ -19,7 +19,7 @@ show_widget(Arg) ->
 	%%io:format("Args are ~p~n", [ Args]),
 	TableName = list_to_atom(proplists:get_value("id", Args)),
 	%% Now get the keys for this table and show them
-	{datainfo, DataKeys}  = emx_data:get_datakeys(TableName),
+	{datainfo, {_MaxEpoch, DataKeys}}  = emx_data:get_datakeys(TableName, 0),
 	%%io:format("Data Keys for ~p is ~p~n", [ TableName, DataKeys]),
 	Rows = lists:map(fun(C) -> transformRow(C) end,DataKeys), 
 	{ehtml,

@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/1, get_datakeys/1, housekeep/0]).
+-export([put_data/2, get_data/1, get_datakeys/2, housekeep/0]).
 
 -include_lib("records.hrl").
 
@@ -46,8 +46,8 @@ put_data(Key, Content) ->
 get_data(Key) ->
     gen_server:call(?GD2, {getData, Key}, infinity).
    
-get_datakeys(Prefix) ->
-    gen_server:call(?GD2, {getDataKeys, Prefix}, infinity).
+get_datakeys(Prefix, EpochNumber) ->
+    gen_server:call(?GD2, {getDataKeys, Prefix, EpochNumber}, infinity).
 %% 
 
 housekeep() ->
@@ -64,9 +64,9 @@ handle_call({putData, Key, Content}, _From, N) ->
     Res = emx_data:put_data(getTableId(Key), Data),
     {reply, {datainfo, Res}, N};
    
-handle_call({getDataKeys, Prefix}, _From, N) ->
-    {datainfo, Keys} = emx_data:get_datakeys(getTableId(Prefix)),
-    {reply, {datainfo, Keys}, N};
+handle_call({getDataKeys, Prefix, EpochNumber}, _From, N) ->
+    {datainfo, {MaxEpoch, Keys}} = emx_data:get_datakeys(getTableId(Prefix), EpochNumber),
+    {reply, {datainfo, {MaxEpoch, Keys}}, N};
     
 handle_call({getData, Key}, _From, N) ->
     {datainfo, Res} = emx_data:get_data(getTableId(Key), Key),

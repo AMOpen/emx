@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/2, get_datakeys/1, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1]).
+-export([put_data/2, get_data/2, get_datakeys/2, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1]).
 
 -include_lib("records.hrl").
 
@@ -71,8 +71,8 @@ put_data(TableId, Data) ->
 get_data(TableId, Key) ->
     gen_server:call(?GD2, {getData, TableId, Key}, infinity).
     
-get_datakeys(TableId) ->
-    gen_server:call(?GD2, {getDataKeys, TableId }, infinity).
+get_datakeys(TableId, EpochNumber) ->
+    gen_server:call(?GD2, {getDataKeys, TableId, EpochNumber }, infinity).
    
 get_tables() ->
     gen_server:call(?GD2, { getTables }, infinity).
@@ -127,13 +127,13 @@ handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
     end,
     {reply, {datainfo, RealRes}, ConfigHandle};
     
-handle_call({getDataKeys, TableId}, _From, ConfigHandle) ->
+handle_call({getDataKeys, TableId, EpochNumber}, _From, ConfigHandle) ->
     TableInfo = getTableInfo(TableId, ConfigHandle),
     case TableInfo#emxstoreconfig.location of
-    	local -> Keys = util_data:foldl(fun collectKeys/2, [], TableInfo#emxstoreconfig.tableid);
-	Node -> {datainfo, Keys} = rpc:call(Node, emx_data, get_datakeys, [ TableId])
+    	local -> {MaxEpoch, _, Keys} = util_data:foldl(fun collectKeys/2, {EpochNumber, EpochNumber, []}, TableInfo#emxstoreconfig.tableid);
+	Node -> {datainfo, {MaxEpoch, Keys}} = rpc:call(Node, emx_data, get_datakeys, [ TableId])
     end,
-    {reply, {datainfo, Keys}, ConfigHandle};
+    {reply, {datainfo, {MaxEpoch, Keys}}, ConfigHandle};
 
 handle_call({getTables}, _From, ConfigHandle) ->
     Tables = util_data:foldl(fun(Record, AccIn) -> AccIn ++ [ Record ] end, [], ConfigHandle),
@@ -148,8 +148,17 @@ handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
 	run_constraints(TableInfo, TableInfo#emxstoreconfig.capacityconstraints),
 	{reply, ok, ConfigHandle}.
     
-collectKeys(Record, AccIn) ->
-	AccIn ++ [ Record ].
+collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
+	case Record#emxcontent.epoch > TestEpoch of
+		true ->
+			NewKeys = Keys ++ [ Record ],
+			NewMaxEpoch = Record#emxcontent.epoch;
+		false ->
+			NewKeys = Keys,
+			NewMaxEpoch = MaxEpoch
+	end,
+	{ NewMaxEpoch, TestEpoch, NewKeys}.
+
 	
 handle_cast(_Msg, N) -> {noreply, N}.
 
