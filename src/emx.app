@@ -20,5 +20,5 @@
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},
-  {start_phases, [jobs]}
+  {start_phases, [{jobs, []}]}
  ]}.

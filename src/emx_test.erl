@@ -5,7 +5,16 @@
 -include_lib("records.hrl").
 
 test() ->
-	application:start(emx).
+	application:start(emx),
+	lists:foreach(fun(Id) ->
+		run_for(util_string:format("official/system.~p", [Id]))
+		end, lists:seq(0, 100)).
+	
+run_for(Prefix) ->
+	lists:foreach(fun(Id) ->
+		emx_admin:put_data(util_string:format("~s/~p", [ Prefix, Id]), "<data/>")
+		end, lists:seq(0, 10000)).
+		
 	
 	
 	

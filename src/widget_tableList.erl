@@ -1,3 +1,8 @@
+%% @author Alan Moore amkimian@mac.com
+%% @copyright 2008-2009 Alan Moore
+
+%% @doc Displays information about all tables in this cache
+
 -module(widget_tableList).
 
 -include("../../yaws-1.77/include/yaws.hrl").

@@ -11,9 +11,6 @@
 
 -include_lib("records.hrl").
 
--include_lib("xmerl/include/xmerl.hrl").
-
--include_lib("stdlib/include/qlc.hrl").
 
 get_path(Req) ->
     {_, Path} = Req#http_request.path, Path.

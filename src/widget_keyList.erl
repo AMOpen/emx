@@ -1,3 +1,8 @@
+%% @author Alan Moore amkimian@mac.com
+%% @copyright 2008-2009 Alan Moore
+
+%% @doc Displays keys in a table
+
 -module(widget_keyList).
 
 -include("../../yaws-1.77/include/yaws.hrl").
@@ -5,10 +10,6 @@
 -include("../../yaws-1.77/include/yaws_api.hrl").
 
 -include_lib("records.hrl").
-
--include_lib("xmerl/include/xmerl.hrl").
-
--include_lib("stdlib/include/qlc.hrl").
 
 -export([show_widget/1]).
 

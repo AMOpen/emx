@@ -1,3 +1,8 @@
+%% @author Alan Moore amkimian@mac.com
+%% @copyright 2008-2009 Alan Moore
+
+%% @doc Wrapper around zipping emxcontent records (could also do util_bfile extraction if necessary)
+
 -module(util_zip).
 
 -export([compress_record/1, decompress_record/1]).
