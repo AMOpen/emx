@@ -1,0 +1,21 @@
+<script type="text/javascript">
+	$(document).ready(function() {
+		$('td[rel*=tablelink]').click(function(event) {
+			<!-- $('div#contents').load('/emx/getkeys/official/trade.aladdin'); -->
+			event.preventDefault();
+			<!-- $('div#contents').load('/admin/getkeys.yaws?table=official_fidap.trade.cds'); -->
+			$('div#contents').load('/admin/getkeys.yaws?id=' + this.id);
+			$('div#data').load('/admin/getdata.yaws?id=null');
+			$('div#contents').show();
+			});
+		}
+	);
+</script>
+
+<h2>Tables</h2>
+<erl>
+   %% This is the first simple widget, it displays a table of clouds available to the user
+   out(Arg) ->
+   	widget_tableList:show_widget(Arg).
+</erl>
+
