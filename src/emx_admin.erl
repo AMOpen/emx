@@ -41,7 +41,7 @@ terminate(_Reason, ConfigHandle) ->
 code_change(_OldVsn, N, _Extra) -> {ok, N}.
    
 put_data(Key, Content) ->
-    gen_server:call(?GD2, {putData, Key, Content}, infinity).
+    gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content}, infinity).
     
 get_data(Key) ->
     gen_server:call(?GD2, {getData, Key}, infinity).
@@ -60,7 +60,7 @@ getTableId(Key) ->
 handle_call({putData, Key, Content}, _From, N) ->
     %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
     %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
-    Data = #emxcontent{ displayname = Key, writetime = calendar:universal_time(), writeuser = anon, content = Content },
+    Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content },
     Res = emx_data:put_data(getTableId(Key), Data),
     {reply, {datainfo, Res}, N};
    
@@ -80,7 +80,7 @@ handle_call({housekeep}, _From, N) ->
 	%% Get all tables, then run housekeep on each one
 	Tables = emx_data:get_tables(),
 	lists:foreach(fun(Table) ->
-		io:format("Running for ~p~n", [ Table]),
+		%%io:format("Running for ~p~n", [ Table]),
 		emx_data:run_capacity(Table#emxstoreconfig.typename)
 		end, Tables),
 	{ reply, ok, N }.
@@ -95,6 +95,8 @@ getTableInfo(TableId, ConfigHandle) ->
 	%%io:format("Table info is ~p~n", [ TableInfo]),
 	case TableInfo of
 		[] ->
+			%% THIS IS WHERE WE NEED TO WORK OUT AN APPROPRIATE PLACE TO PUT THE TABLE
+			%% WHICH MAY NOT BE THIS NODE
 			[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
 			%%io:format("Default table info is ~p~n", [ DefaultTableInfo]),
 			NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),

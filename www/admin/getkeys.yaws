@@ -1,0 +1,15 @@
+<script type="text/javascript">
+	$(document).ready(function() {
+		$('td[rel*=keylink]').click(function(event) {
+			event.preventDefault();
+			$('div#data').load('/admin/getdata.yaws?id=' + this.id);
+			$('div#data').show('slow');
+			});
+		}
+	);
+</script>
+<erl>
+   %% This is the first simple widget, it displays a table of clouds available to the user
+   out(Arg) ->
+   	widget_keyList:show_widget(Arg).
+</erl>

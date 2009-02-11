@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+	<link rel="stylesheet" type="text/css" href="/style/menu1.css" title="styles2" media="screen" />
+	<link rel="stylesheet" href="/style/style.css" type="text/css"/>
+	<script type="text/javascript" src="/script/jquery.js"></script>
+    <script type="text/javascript">
+	$(document).ready(function() {
+    		$('div#tables').load('/widget/tableList.yaws');
+		$('div#tables').show('slow');
+		$('a[rel*=tablelink]').click(function(event) {
+			<!-- $('div#contents').load('/emx/getkeys/official/trade.aladdin'); -->
+			event.preventDefault();
+			<!-- $('div#contents').load('/admin/getkeys.yaws?table=official_fidap.trade.cds'); -->
+			$('div#contents').load($(this).attr(href));
+			});
+		});
+    </script>
+</head>
+<body>
+	    <div style="background:#FF6600 url(/images/header_bgnd.jpg); padding:10px"><font color="#ffffff" size="+3" face="Verdana, Arial">EMX Live Cache</font></div>
+<div id="tables">
+	<script type="text/javascript">
+		pullUpdate();
+		var timer = false;
+		function pullUpdate()
+		{
+	    		$('div#tables').load('/widget/tableList.yaws');
+
+			var doSetTimeout = function() {
+				pullUpdate();
+			}
+			timer = setTimeout(doSetTimeout, 10000);
+		}
+	</script>
+</div>
+<table>
+<tr><td width="75%" valign="top"><div id="contents"></div></td><td width="25%" valign="top"><div id="data"></div></td></tr>
+</table>
+</body>
+</html>

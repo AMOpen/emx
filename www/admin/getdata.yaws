@@ -1,0 +1,6 @@
+<erl>
+   %% This is the first simple widget, it displays a table of clouds available to the user
+   out(Arg) ->
+   	widget_dataList:show_widget(Arg).
+</erl>
+

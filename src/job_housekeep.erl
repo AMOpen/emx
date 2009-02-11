@@ -66,7 +66,7 @@ running(finished, State) ->
     {next_state, stopped, State, 30000}.
 
 housekeep() ->
-    io:format("Housekeeping~n"),
+    %%io:format("Housekeeping~n"),
     emx_admin:housekeep(),
     gen_fsm:send_event(?GD2, finished).
 

@@ -41,5 +41,5 @@ get_size({ets, TableId}) ->
 get_size({dets, TableId}) ->
 	{dets:info(TableId, no_keys), dets:info(TableId, memory)};
 
-get_size(undefined) ->
+get_size(_) ->
 	{ 0, 0}.

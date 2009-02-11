@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/2, get_datakeys/1, run_capacity/1, get_tables/0]).
+-export([put_data/2, get_data/2, get_datakeys/1, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1]).
 
 -include_lib("records.hrl").
 
@@ -76,6 +76,13 @@ get_datakeys(TableId) ->
    
 get_tables() ->
     gen_server:call(?GD2, { getTables }, infinity).
+
+update_constraints(TableId, Constraints) ->
+    gen_server:call(?GD2, { updateConstraints, TableId, Constraints}, infinity).
+    
+create_local_table(TableId) ->
+    io:format("Create local table for ~p~n", [ TableId]),
+    gen_server:call(?GD2, { createLocalTable, TableId}, infinity).
     
 run_capacity(TableId) when is_atom(TableId) ->
     gen_server:call(?GD2, {runCapacity, TableId }, infinity);
@@ -90,24 +97,50 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     %% Use ConfigHandle to get at the config table for the TableId (which is actually a string that we should find in the ConfigHandle).
     %% If we cannot find the TableId that way, create a new one and add it to ConfigHandle
     %%io:format("Getting table id~n"),
-    NewTableId = getTableId(TableId, ConfigHandle),
-    %%io:format("Id is ~p~n", [ NewTableId] ),
-    Res = util_data:put_data(NewTableId, Data),
+    NewTableInfo = getTableInfo(TableId, ConfigHandle),
+    %%io:format("Table Info is ~p~n", [ NewTableInfo] ),
+    case NewTableInfo#emxstoreconfig.location of
+    	local ->
+		%% Data is an emxstoreconfig record
+		CompressedData = util_zip:compress_record(Data),
+		%% Update epoch
+		UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
+		Res = util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
+		util_data:put_data(ConfigHandle, UpdatedEpoch);
+	Node ->
+		Res = rpc:call(Node, emx_data, put_data, [ TableId, Data])
+    end,
     {reply, {datainfo, Res}, ConfigHandle};
+
+handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
+    NewTableInfo = getTableInfo(TableId, ConfigHandle),
+    UpdatedInfo = NewTableInfo#emxstoreconfig{ capacityconstraints = Constraints },
+    util_data:put_data(ConfigHandle, UpdatedInfo),
+    {reply, ok, ConfigHandle};
     
 handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
-    NewTableId = getTableId(TableId, ConfigHandle),
-    Res = util_data:get_data(NewTableId, Key),
-    {reply, {datainfo, Res}, ConfigHandle};
+    TableInfo = getTableInfo(TableId, ConfigHandle),
+    case TableInfo#emxstoreconfig.location of
+    	local -> Res = util_data:get_data(TableInfo#emxstoreconfig.tableid, Key),
+		 RealRes = lists:map(fun(Record) -> util_zip:decompress_record(Record) end, Res);
+	Node ->  {datainfo, RealRes} = rpc:call(Node, emx_data, get_data, [ TableId, Key])
+    end,
+    {reply, {datainfo, RealRes}, ConfigHandle};
     
 handle_call({getDataKeys, TableId}, _From, ConfigHandle) ->
-    NewTableId = getTableId(TableId, ConfigHandle),
-    Keys = util_data:foldl(fun collectKeys/2, [], NewTableId),
+    TableInfo = getTableInfo(TableId, ConfigHandle),
+    case TableInfo#emxstoreconfig.location of
+    	local -> Keys = util_data:foldl(fun collectKeys/2, [], TableInfo#emxstoreconfig.tableid);
+	Node -> {datainfo, Keys} = rpc:call(Node, emx_data, get_datakeys, [ TableId])
+    end,
     {reply, {datainfo, Keys}, ConfigHandle};
 
 handle_call({getTables}, _From, ConfigHandle) ->
     Tables = util_data:foldl(fun(Record, AccIn) -> AccIn ++ [ Record ] end, [], ConfigHandle),
     {reply, Tables, ConfigHandle};
+    
+handle_call({createLocalTable, TableId}, _From, ConfigHandle) ->
+    {reply,  low_create_local_table(TableId, ConfigHandle), ConfigHandle};
     
 handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
 	%% Load the capacity constraints for the given tablename, then run them...
@@ -116,7 +149,7 @@ handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
 	{reply, ok, ConfigHandle}.
     
 collectKeys(Record, AccIn) ->
-	AccIn ++ [ Record # emxcontent.displayname ].
+	AccIn ++ [ Record ].
 	
 handle_cast(_Msg, N) -> {noreply, N}.
 
@@ -132,24 +165,9 @@ getTableInfo(TableId, ConfigHandle) ->
 	%%io:format("Table info is ~p~n", [ TableInfo]),
 	case TableInfo of
 		[] ->
-			[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
-	%%		io:format("Default table info is ~p~n", [ DefaultTableInfo]),
-			NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
-	%		io:format("New Table Id is ~p~n", [ NewTableId]),
-			NewTableInfo = DefaultTableInfo#emxstoreconfig { typename = TableId, tableid = NewTableId },
-	%%		io:format("Putting config data~n"),
-			util_data:put_data(ConfigHandle, NewTableInfo),
-	%%		io:format("Returning~n"),
-			NewTableInfo;
+			get_location_for_new_table(TableId, ConfigHandle);
 		[ Info | _ ] ->
-			case Info#emxstoreconfig.tableid of
-				undefined ->
-					TableId = util_data:get_handle(Info#emxstoreconfig.storagetype, Info#emxstoreconfig.storageoptions),
-					util_data:put_data(ConfigHandle, Info#emxstoreconfig{tableid = TableId}),
-					Info#emxstoreconfig{ tableid = TableId};
-				Id ->
-					Info
-			end
+			Info
 	end.
 
 %% The following functions are to handle the removal of data from a cache to keep it within certain constraints
@@ -158,14 +176,17 @@ getTableInfo(TableId, ConfigHandle) ->
 run_constraints(TableConfig, []) ->
 	ok;
 run_constraints(TableConfig, [ H | T]) ->
-	run_constraint(TableConfig, H),
+	case TableConfig#emxstoreconfig.location of
+		local -> run_constraint(TableConfig, H);
+		_ -> null
+	end,
 	run_constraints(TableConfig, T).
 	
 run_constraint(TableConfig, { records, MaxCount }) ->
 	%% The table should have no more than MaxCount records. If there are more than that,
 	%% remove them in age order until the number of records is below MaxCount
 	{ RecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-	io:format("Record count is ~p~n", [ RecordCount]),
+	%%io:format("Record count is ~p~n", [ RecordCount]),
 	case RecordCount > MaxCount of
 		true ->
 			%% need to remove
@@ -183,8 +204,8 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 	
 run_constraint(TableConfig, { age, MaxAge }) ->
 	%% Remove all records older than MaxAge
-	TestTime = calendar:datetime_to_gregorian_seconds(calendar:universal_time()) - MaxAge,	
-	io:format("Test time is ~p~n", [ TestTime]),
+	TestTime = calendar:datetime_to_gregorian_seconds(calendar:local_time()) - MaxAge,	
+	%%io:format("Test time is ~p~n", [ TestTime]),
 	util_data:foldl(fun(Record, AccIn) ->
 		WriteTime = calendar:datetime_to_gregorian_seconds(Record#emxcontent.writetime),
 		case WriteTime < TestTime of
@@ -200,7 +221,7 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 	%% The table should be smaller than MaxSize. If it is greater, remove records
 	%% in age order until the size is reduced below MaxSize
 	{ _, Memory } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-	io:format("Memory use is ~p~n", [ Memory]),
+	%%io:format("Memory use is ~p~n", [ Memory]),
 	case Memory > MaxSize of
 		true ->
 			%% need to remove
@@ -225,4 +246,32 @@ get_all_sorted(TableConfig) ->
 					First = calendar:datetime_to_gregorian_seconds(Elem1#emxcontent.writetime),
 					Second = calendar:datetime_to_gregorian_seconds(Elem2#emxcontent.writetime),
 					Second > First end, UnsortedList). 
-			
+
+low_create_local_table(TableId, ConfigHandle) ->
+	[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
+	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = local },
+	NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
+	RetTableInfo = NewTableInfo#emxstoreconfig { tableid = NewTableId },
+	util_data:put_data(ConfigHandle, RetTableInfo),
+	RetTableInfo.
+
+%%% Given a tableId (e.g. 'official_trade.aladdin'), where should we put this table?
+%%% Return an emxstoreconfig record to represent it. 
+get_location_for_new_table(TableId, ConfigHandle) ->
+	%% Now get the nodes that could host this
+	{ok, Nodes} = application:get_env(nodes),
+	%% Now pick one (at random initially)
+	NodeToHost  = util_randomext:pickCount(Nodes, 1),
+	%%io:format("Node to host is ~p~n", [ NodeToHost] ),
+	case NodeToHost of
+		local -> low_create_local_table(TableId, ConfigHandle);
+		Node  ->  
+			%%io:format("Making remote call to ~p~n", [ Node]),
+			Resp = rpc:call(NodeToHost, emx_data, create_local_table, [ TableId]),
+			%%io:format("Remote Response is ~p~n", [ Resp]),
+			ModifiedResp = Resp#emxstoreconfig { location = NodeToHost, tableid = { remote, NodeToHost }},
+			util_data:put_data(ConfigHandle, ModifiedResp),
+			ModifiedResp
+	end.
+	
+	

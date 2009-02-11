@@ -11,6 +11,13 @@ body pre {
 	color: #FFFFFF;
 }
 
+textarea {
+	font-size: 8pt;
+	font-family: verdana, arial;
+	background-color: #000000;
+	color: #FFFFFF;
+}
+	
 /* tables */
 table.tablesorter {
 	font-family: verdana, arial;
@@ -93,6 +100,11 @@ table.tablesorter tbody td.black {
 	background-color: #101010;
 	vertical-align: top;
 	text-align: center;
+}
+
+table.tablesorter tbody td.clickable {
+	background-color: #FFFFAA;
+	color: #0000FF;	
 }
 
 table.tablesorter tbody tr.odd td {

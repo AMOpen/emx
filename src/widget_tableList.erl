@@ -24,7 +24,9 @@ show_widget(Arg) ->
 				[ {tr, [], [
 					{th, [], "Name"},
 					{th, [], "Storage"},
+					{th, [], "Location"},
 					{th, [], "Records"},
+					{th, [], "Epoch"},
 					{th, [], "Memory"},
 					{th, [], "Max Records"},
 					{th, [], "Max Age"},	
@@ -46,18 +48,22 @@ transformRow(Table) ->
 	MaxMemory = proplists:get_value(size, Table#emxstoreconfig.capacityconstraints),
 	{ tr, [], [ 
 		{ td, [], util_string:format("~p", [Table#emxstoreconfig.typename]) },
-		{ td, [], util_string:format("~p", [Table#emxstoreconfig.storagetype]) },
+		{ td, [], getStorage(Table#emxstoreconfig.storagetype) },
+		{ td, [], util_string:format("~p", [Table#emxstoreconfig.location]) },
 		{ td, [], util_string:format("~p", [Records]) },
+		{ td, [], util_string:format("~p", [Table#emxstoreconfig.epoch]) },
 		{ td, [], util_string:format("~p", [Memory]) },
 		{ td, [], util_string:format("~p", [MaxRecords]) },
 		{ td, [], util_string:format("~p", [MaxAge]) },
 		{ td, [], util_string:format("~p", [MaxMemory]) },
-		{ td, [], [
-				{ a, [
-					{ rel, tablelink },
-					{ href, "dummy" }
-				     ], "View" 
-				}
-		          ] }
+		{ td, [
+			{ class, "clickable" },
+			{ rel, tablelink },
+			{ id, util_string:format("~s", [Table#emxstoreconfig.typename])  }
+		      ], "View" }
 		]}.
 
+getStorage(ets) ->
+	"Memory";
+getStorage(dets) ->
+	"Disk".
