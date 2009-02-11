@@ -163,10 +163,6 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 handle_cast(_Msg, N) -> {noreply, N}.
 
 handle_info(_Info, N) -> {noreply, N}.
-
-getTableId(TableName, ConfigHandle) ->
-	X = getTableInfo(TableName, ConfigHandle),
-	X#emxstoreconfig.tableid.
 	
 getTableInfo(TableId, ConfigHandle) ->
 	%%io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
@@ -182,7 +178,7 @@ getTableInfo(TableId, ConfigHandle) ->
 %% The following functions are to handle the removal of data from a cache to keep it within certain constraints
 %% Constraints are by memory use, number of records or age of documents.
 
-run_constraints(TableConfig, []) ->
+run_constraints(_TableConfig, []) ->
 	ok;
 run_constraints(TableConfig, [ H | T]) ->
 	case TableConfig#emxstoreconfig.location of
@@ -276,9 +272,9 @@ get_location_for_new_table(TableId, ConfigHandle) ->
 		local -> low_create_local_table(TableId, ConfigHandle);
 		Node  ->  
 			%%io:format("Making remote call to ~p~n", [ Node]),
-			Resp = rpc:call(NodeToHost, emx_data, create_local_table, [ TableId]),
+			Resp = rpc:call(Node, emx_data, create_local_table, [ TableId]),
 			%%io:format("Remote Response is ~p~n", [ Resp]),
-			ModifiedResp = Resp#emxstoreconfig { location = NodeToHost, tableid = { remote, NodeToHost }},
+			ModifiedResp = Resp#emxstoreconfig { location = Node, tableid = { remote, Node }},
 			util_data:put_data(ConfigHandle, ModifiedResp),
 			ModifiedResp
 	end.

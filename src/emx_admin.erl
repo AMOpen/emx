@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/1, get_datakeys/2, housekeep/0]).
+-export([put_data/2, get_data/1, get_datakeys/2, get_datakeys/1, housekeep/0]).
 
 -include_lib("records.hrl").
 
@@ -28,6 +28,8 @@
 %% Hold a config table id for passing around. The storage options for the 
 %% config table are passed as startup parameters
 
+%% GEN_SERVER FUNCTIONS
+
 start_link(_Arg) ->
     gen_server:start_link(?GD1, ?MODULE, [], []).
 
@@ -39,7 +41,9 @@ terminate(_Reason, _ConfigHandle) ->
     ok.
 
 code_change(_OldVsn, N, _Extra) -> {ok, N}.
-   
+
+%% API FUNCTIONS
+
 put_data(Key, Content) ->
     gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content}, infinity).
     
@@ -48,22 +52,33 @@ get_data(Key) ->
    
 get_datakeys(Prefix, EpochNumber) ->
     gen_server:call(?GD2, {getDataKeys, Prefix, EpochNumber}, infinity).
-%% 
+    
+get_datakeys(Prefix) ->
+    get_datakeys(Prefix, 0).
 
 housekeep() ->
     gen_server:call(?GD2, {housekeep}, infinity).
+
+%% LOCAL FUNCTIONS
 
 getTableId(Key) ->
     [ Protocol, Type | _ ] = string:tokens(Key, "/"),
     list_to_atom(string:join([ Protocol, Type ], "_")).
 
+%% API HANDLING FUNCTIONS
+
+%% TODO: Add writeUser to this call
 handle_call({putData, Key, Content}, _From, N) ->
     %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
     %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
+    %% In the future this could be configurable by "type" (again, with a default of 2)
     Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content },
     Res = emx_data:put_data(getTableId(Key), Data),
     {reply, {datainfo, Res}, N};
    
+%% The epoch number implies that the caller has already seen all of the changes in the cache up to that point, and therefore
+%% would like to see the changes since that point. An Epoch number of 0 means everything.
+
 handle_call({getDataKeys, Prefix, EpochNumber}, _From, N) ->
     {datainfo, {MaxEpoch, Keys}} = emx_data:get_datakeys(getTableId(Prefix), EpochNumber),
     {reply, {datainfo, {MaxEpoch, Keys}}, N};
@@ -81,6 +96,7 @@ handle_call({housekeep}, _From, N) ->
 	Tables = emx_data:get_tables(),
 	lists:foreach(fun(Table) ->
 		%%io:format("Running for ~p~n", [ Table]),
+		%% run_capacity handles remote tables itself
 		emx_data:run_capacity(Table#emxstoreconfig.typename)
 		end, Tables),
 	{ reply, ok, N }.

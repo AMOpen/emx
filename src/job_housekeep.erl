@@ -33,8 +33,6 @@ start_link(_Arg) ->
 init(_) ->
     process_flag(trap_exit, true),
     io:format("~p starting ~n", [?MODULE]),
-    %% Call checkStartup after 20 seconds, our default state is paused
-    timer:apply_after(20000, ?MODULE, checkStartup, []),
     {ok, paused, {[], null}}.
 
 checkStartup() ->

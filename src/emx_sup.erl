@@ -1,5 +1,5 @@
 %% @author Alan Moore amkimian@mac.com
-%% @copyright 2008 Alan Moore
+%% @copyright 2008-9 Alan Moore
 
 -module(emx_sup).
 
@@ -31,18 +31,7 @@ start_link([]) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    %%mnesia:start(),
-    util_flogger:logMsg(self(), ?MODULE, debug,
-			"EMX starting, waiting for mnesia"),
     Args = [],
-  %%  mnesia:wait_for_tables([cloudconfig], 600000),
-  %%  Clouds = util_cloud:getCloudTables(),
-    %%
-  %%  util_flogger:logMsg(self(), ?MODULE, debug,
-  %%			"Waiting for ~p", [Clouds]),
-  %%  mnesia:wait_for_tables(Clouds, 600000),
-    util_flogger:logMsg(self(), ?MODULE, debug,
-			"Mnesia ready"),
     ModuleArray = lists:map(fun(Module) -> {
     			Module, 
 			{Module, start_link, [Args]},
@@ -56,5 +45,3 @@ init([]) ->
 			
     {ok, {{one_for_one, 3, 1}, ModuleArray}}.
 
-init_1(Var) ->
-    {ok, Value} = application:get_env(Var), Value.

@@ -17,24 +17,27 @@ start_link(Args) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Args,
 			  []).
 
-init(Args) ->
-    {ok, Host} = application:get_env(host),
-    {ok, Port} = application:get_env(port),
-    {ok, WorkingDir} = application:get_env(workingdir),
+getAppArgs(List) ->
+     lists:map(fun(Param) ->
+     			{ ok, Ret} = application:get_env(Param),
+			Ret
+			end, List).
+init(_Args) ->
+    [ Host, Port, LogDir] = getAppArgs([webhost, webport, weblogdir]),
     
     util_flogger:logMsg(self(), ?MODULE, debug,
-			"Init ecld_restserver"),
+			"Init emx_restserver"),
     process_flag(trap_exit, true),
     case application:start(yaws) of
-      ok -> set_conf([Host, Port, WorkingDir]);
+      ok -> set_conf([Host, Port, LogDir]);
       Error -> {stop, Error}
     end.
 
-set_conf([Host, Port, WorkingDir]) ->
+set_conf([Host, Port, LogDir]) ->
     util_flogger:logMsg(self(), ?MODULE, debug,
 			"Setting configuration for yaws"),
     GC = #gconf{trace = false,
-		logdir = WorkingDir ++ "/logs",
+		logdir = LogDir,
 		yaws = "EMX 1.0",
 		yaws_dir = "../../yaws-1.77"},
     SC = #sconf{port = Port, servername = atom_to_list(Host),

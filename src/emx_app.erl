@@ -21,14 +21,9 @@ start_phase(Phase, Mode, Args) ->
     start_inner_phase(Phase, Mode, Args).
     
 start_inner_phase(jobs, _Mode, _Args) ->
-  ok;
-  
-start_inner_phase(fsm, _Mode, _Args) ->
-  ok;
-  
-start_inner_phase(final, _Mode, _Args) ->
+  job_housekeep:checkStartup(),
   ok.
-
+  
 start(_Type, StartArgs) ->
     Ret = emx_sup:start_link(StartArgs),
     util_flogger:logMsg(self(), ?MODULE, normal,
