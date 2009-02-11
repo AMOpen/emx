@@ -14,7 +14,8 @@
 	{port, 8665 },
 	{workingdir, "c:\\clouddata"},
 	{emxconfig, {ets, [{keypos, 2}]}},
-	{defaultstore, { emxstoreconfig, "default", ets, [{keypos, 2}], false, undefined, [ { records, 1000 }, {age, 120}, { size, 5000000}] }},
+	{defaultstore, { emxstoreconfig, "default", ets, [{keypos, 2}], false, undefined, [ { records, 5000 }, {age, 3600}, { size, 50000000}],0,local }},
+	{nodes, [local] },
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},
