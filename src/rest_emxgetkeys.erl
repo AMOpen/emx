@@ -10,14 +10,27 @@
 out(Arg) ->
     Req = Arg#arg.req,
     ReqPath = util_yaws:get_path(Req),
-    {KeyPrefix, EpochNumber} = get_vals(ReqPath),
+    PathTokens = string:tokens(ReqPath, "/"),
+    processPath(PathTokens).
     
+processPath(["emx", "getkeys" | Remainder]) ->
+    {KeyPrefix, EpochNumber} = parse_vals(Remainder),    
     {datainfo, {MaxEpoch, Keys}} = emx_admin:get_datakeys(KeyPrefix, EpochNumber),
     MainContent = lists:foldl(fun(Key, AccIn) ->
     					ContentKey = util_string:format("<key>~s</key>", [ Key#emxcontent.displayname]),					
     					AccIn ++ ContentKey
 					end, [], Keys),				
-    util_yaws:make_response(200, util_string:format("<Keys MaxEpoch='~p'>~s</Keys>", [ MaxEpoch, MainContent])).
+    util_yaws:make_response(200, util_string:format("<Keys MaxEpoch='~p'>~s</Keys>", [ MaxEpoch, MainContent]));
+    
+processPath(["emx", "getdata" | Remainder]) ->
+    {KeyPrefix, EpochNumber} = parse_vals(Remainder),    
+    {datainfo, {MaxEpoch, Keys}} = emx_admin:get_datakeys(KeyPrefix, EpochNumber),
+    MainContent = lists:foldl(fun(Key, AccIn) ->
+    					ContentKey = util_string:format("<data><key>~s</key><content>~s</content></data>", [ Key#emxcontent.displayname, Key#emxcontent.content]),					
+    					AccIn ++ ContentKey
+					end, [], Keys),				
+    util_yaws:make_response(200, util_string:format("<DataSet MaxEpoch='~p'>~s</DataSet>", [ MaxEpoch, MainContent])).
+    
     
 get_vals(ReqPath) ->
      ["emx", "getkeys" | Remainder] = string:tokens(ReqPath, "/"),

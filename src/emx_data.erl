@@ -151,7 +151,7 @@ handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
 collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	case Record#emxcontent.epoch > TestEpoch of
 		true ->
-			NewKeys = Keys ++ [ Record ],
+			NewKeys = Keys ++ [ util_zip:decompress_record(Record) ],
 			NewMaxEpoch = Record#emxcontent.epoch;
 		false ->
 			NewKeys = Keys,
