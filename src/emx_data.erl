@@ -67,7 +67,22 @@ init(_) ->
 
 populate_from_node(Node, ConfigHandle) ->
 	Res = rpc:call(Node, emx_data, get_tables, []),
-	io:format("Response from populate_from_node is ~p~n", [ Res ]).
+	io:format("Response from populate_from_node is ~p~n", [ Res ]),
+	%% We need to add any interesting table to our record, but also
+	%% change the tableid to remote
+	case Res of
+		{badrpc, _ } -> nothing;
+		_ ->
+			lists:foreach(fun(TableInfo) ->
+				case TableInfo#emxstoreconfig.typename of
+					"default" -> dontdothis;
+					_ ->  
+						NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
+						util_data:put_data(ConfigHandle, NewTableInfo)
+				end
+				end, Res)
+	end.
+		
 	
 closer(Record, AccIn) ->
 	case Record#emxstoreconfig.tableid of
