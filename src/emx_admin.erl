@@ -48,7 +48,7 @@ put_data(Key, Content) ->
     gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content}, infinity).
     
 get_data(Key) ->
-    gen_server:call(?GD2, {getData, Key}, infinity).
+    gen_server:call(?GD2, {getData, Key}, 2000).
    
 get_datakeys(Prefix, EpochNumber) ->
     gen_server:call(?GD2, {getDataKeys, Prefix, EpochNumber}, infinity).
@@ -72,8 +72,9 @@ handle_call({putData, Key, Content}, _From, N) ->
     %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
     %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
     %% In the future this could be configurable by "type" (again, with a default of 2)
+    io:format("In put data~n"),
     Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content },
-    Res = emx_data:put_data(getTableId(Key), Data),
+    Res = emx_data:put_data(getTableId(Key), Data, local),
     {reply, {datainfo, Res}, N};
    
 %% The epoch number implies that the caller has already seen all of the changes in the cache up to that point, and therefore
@@ -92,13 +93,18 @@ handle_call({getData, Key}, _From, N) ->
     end;
 
 handle_call({housekeep}, _From, N) ->
-	%% Get all tables, then run housekeep on each one
+	%% Get all tables, then run housekeep on each one, also see if we should be taking a copy of this table and hosting
+	%% it ourselves, or perhaps giving up a table to other nodes
 	Tables = emx_data:get_tables(),
 	lists:foreach(fun(Table) ->
-		%%io:format("Running for ~p~n", [ Table]),
+		io:format("Running for ~p~n", [ Table#emxstoreconfig.typename]),
 		%% run_capacity handles remote tables itself
-		emx_data:run_capacity(Table#emxstoreconfig.typename)
+		emx_data:run_capacity(Table#emxstoreconfig.typename),
+		io:format("Ran capacity, now running balancer~n"),
+		emx_data:run_balancer(Table#emxstoreconfig.typename),
+		io:format("Finished balancer~n")
 		end, Tables),
+	io:format("Finished housekeep~n"),
 	{ reply, ok, N }.
     
 handle_cast(_Msg, N) -> {noreply, N}.
