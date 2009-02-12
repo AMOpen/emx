@@ -12,7 +12,8 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/2, get_datakeys/2, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1]).
+-export([put_data/2, get_data/2, get_datakeys/2, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1,
+	add_remote_table/1, update_table_info/3]).
 
 -include_lib("records.hrl").
 
@@ -47,7 +48,8 @@ init(_) ->
 		util_data:put_data(ConfigHandle, DefaultStore);
 	_ ->
 		ok
-    end,
+    end,    
+    
     %% Also register interest in node information
     {ok, Nodes} = application:get_env(nodes),
     ThisNode = node(),
@@ -94,6 +96,12 @@ get_datakeys(TableId, EpochNumber) ->
 get_tables() ->
     gen_server:call(?GD2, { getTables }, infinity).
 
+add_remote_table(TableInfo) ->
+    gen_server:cast(?GD2, { addRemoteTable, TableInfo }).
+    
+update_table_info(TableId, Change, Info) ->
+    gen_server:cast(?GD2, { updateTableInfo, TableId, Change, Info }).
+    
 update_constraints(TableId, Constraints) ->
     gen_server:call(?GD2, { updateConstraints, TableId, Constraints}, infinity).
     
@@ -115,19 +123,23 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     %% If we cannot find the TableId that way, create a new one and add it to ConfigHandle
     %%io:format("Getting table id~n"),
     NewTableInfo = getTableInfo(TableId, ConfigHandle),
-    %%io:format("Table Info is ~p~n", [ NewTableInfo] ),
-    case NewTableInfo#emxstoreconfig.location of
-    	local ->
-		%% Data is an emxstoreconfig record
-		CompressedData = util_zip:compress_record(Data),
-		%% Update epoch
-		UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
-		Res = util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
-		util_data:put_data(ConfigHandle, UpdatedEpoch);
-	Node ->
-		Res = rpc:call(Node, emx_data, put_data, [ TableId, Data])
-    end,
-    {reply, {datainfo, Res}, ConfigHandle};
+    MyNode = node(),
+    %% Save it to each node in the configuration
+    lists:foreach(fun(Node) ->
+    	case Node of
+    		MyNode ->
+			%% Data is an emxstoreconfig record
+			CompressedData = util_zip:compress_record(Data),
+			%% Update epoch
+			UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
+			Res = util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
+			util_data:put_data(ConfigHandle, UpdatedEpoch);
+		Node ->
+			Res = rpc:call(Node, emx_data, put_data, [ TableId, Data])
+	end
+	end,
+	NewTableInfo#emxstoreconfig.location),
+    {reply, {datainfo, ok}, ConfigHandle};
 
 handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
     NewTableInfo = getTableInfo(TableId, ConfigHandle),
@@ -137,18 +149,22 @@ handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
     
 handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
     TableInfo = getTableInfo(TableId, ConfigHandle),
-    case TableInfo#emxstoreconfig.location of
-    	local -> Res = util_data:get_data(TableInfo#emxstoreconfig.tableid, Key),
+    MyNode = node(),
+    Location = util_randomext:pickCount(TableInfo#emxstoreconfig.location, 1),
+    case Location of
+        MyNode -> Res = util_data:get_data(TableInfo#emxstoreconfig.tableid, Key),
 		 RealRes = lists:map(fun(Record) -> util_zip:decompress_record(Record) end, Res);
-	Node ->  {datainfo, RealRes} = rpc:call(Node, emx_data, get_data, [ TableId, Key])
+	Location ->  {datainfo, RealRes} = rpc:call(Location, emx_data, get_data, [ TableId, Key])
     end,
     {reply, {datainfo, RealRes}, ConfigHandle};
     
 handle_call({getDataKeys, TableId, EpochNumber}, _From, ConfigHandle) ->
     TableInfo = getTableInfo(TableId, ConfigHandle),
-    case TableInfo#emxstoreconfig.location of
-    	local -> {MaxEpoch, _, Keys} = util_data:foldl(fun collectKeys/2, {EpochNumber, EpochNumber, []}, TableInfo#emxstoreconfig.tableid);
-	Node -> {datainfo, {MaxEpoch, Keys}} = rpc:call(Node, emx_data, get_datakeys, [ TableId])
+    MyNode = node(),
+    Location = util_randomext:pickCount(TableInfo#emxstoreconfig.location, 1),
+    case Location of
+    	MyNode -> {MaxEpoch, _, Keys} = util_data:foldl(fun collectKeys/2, {EpochNumber, EpochNumber, []}, TableInfo#emxstoreconfig.tableid);
+	Location -> {datainfo, {MaxEpoch, Keys}} = rpc:call(Location, emx_data, get_datakeys, [ TableId, EpochNumber])
     end,
     {reply, {datainfo, {MaxEpoch, Keys}}, ConfigHandle};
 
@@ -177,13 +193,44 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	{ NewMaxEpoch, TestEpoch, NewKeys}.
 
 	
+handle_cast({addRemoteTable, TableInfo}, ConfigHandle) ->
+	util_data:put_data(ConfigHandle, TableInfo),
+	lists:foreach(fun(Node) -> erlang:monitor_node(Node, true) end, TableInfo#emxstoreconfig.location),
+	{noreply, ConfigHandle};
+
+handle_cast({updateTableInfo, "default", nodedown, Node }, ConfigHandle) ->
+	{noreply, ConfigHandle};
+
+handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
+	%% The node passed is no longer hosting this table, so remove it from the list
+	TableInfo = getTableInfo(TableId, ConfigHandle),
+	NewTableInfo = TableInfo#emxstoreconfig { location = 
+			lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
+	case NewTableInfo#emxstoreconfig.location of
+		[] ->
+			util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename);
+		_ ->
+			util_data:put_data(ConfigHandle, NewTableInfo)
+	end,
+	{noreply, ConfigHandle};
+
+handle_cast({updateTableInfo, TableId, nodeup, Node }, ConfigHandle) ->
+	TableInfo = getTableInfo(TableId, ConfigHandle),
+	NewTableInfo = TableInfo#emxstoreconfig { location = TableInfo#emxstoreconfig.location ++ [ Node ] },
+	util_data:put_data(ConfigHandle, NewTableInfo),
+	%% There is no harm in monitoring this node again
+	erlang:monitor_node(Node, true),
+	{noreply, ConfigHandle};
+	
 handle_cast(Msg, N) -> 
 	io:format("Received cast ~p~n", [ Msg ]),
 	{noreply, N}.
 
-handle_info({nodedown, Node}, N) ->
+handle_info({nodedown, Node}, ConfigHandle) ->
 	io:format("Node ~p is down~n", [ Node]),
-	{noreply, N};
+	%% Remove node from each table that has it
+	util_data:foldl(fun(TableInfo, AccIn) -> emx_data:update_table_info(TableInfo#emxstoreconfig.typename, nodedown, Node), AccIn end, [], ConfigHandle), 
+	{noreply, ConfigHandle};
 	
 handle_info(Info, N) -> 
 	io:format("Received info ~p~n", [ Info ]),
@@ -278,30 +325,52 @@ get_all_sorted(TableConfig) ->
 					Second > First end, UnsortedList). 
 
 low_create_local_table(TableId, ConfigHandle) ->
+        io:format("Getting low_create_local_table~n"),
 	[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
-	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = local },
+	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = [ node() ] },
 	NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
 	RetTableInfo = NewTableInfo#emxstoreconfig { tableid = NewTableId },
+	io:format("Ret Table info is ~p~n", [ RetTableInfo]),
 	util_data:put_data(ConfigHandle, RetTableInfo),
+	{ok, PossibleNodes} = application:get_env(nodes),
+	MyNode = node(),
+	lists:foreach(fun(Node) -> 
+		case Node of
+			MyNode -> null;
+			_ -> 
+				rpc:call(Node, emx_data, add_remote_table, [RetTableInfo])
+		end
+		end, PossibleNodes),
 	RetTableInfo.
 
 %%% Given a tableId (e.g. 'official_trade.aladdin'), where should we put this table?
-%%% Return an emxstoreconfig record to represent it. 
+%%% Return an emxstoreconfig record to represent it.
+
 get_location_for_new_table(TableId, ConfigHandle) ->
+	get_location_for_new_table(TableId, ConfigHandle, []).
+	
+get_location_for_new_table(TableId, ConfigHandle, ExcludeNodes) ->
 	%% Now get the nodes that could host this
 	{ok, Nodes} = application:get_env(nodes),
+	RealList = lists:filter(fun(Node) -> lists:all(fun(Exclude) -> Exclude /= Node end, ExcludeNodes) end, Nodes),
 	%% Now pick one (at random initially)
-	NodeToHost  = util_randomext:pickCount(Nodes, 1),
-	%%io:format("Node to host is ~p~n", [ NodeToHost] ),
+	NodeToHost  = util_randomext:pickCount(RealList, 1),
+	MyNode = node(),
+	io:format("Node to host is ~p~n", [ NodeToHost] ),
 	case NodeToHost of
-		local -> low_create_local_table(TableId, ConfigHandle);
+		MyNode -> low_create_local_table(TableId, ConfigHandle);
 		Node  ->  
-			%%io:format("Making remote call to ~p~n", [ Node]),
+			io:format("Making remote call to ~p~n", [ Node]),
 			Resp = rpc:call(Node, emx_data, create_local_table, [ TableId]),
-			%%io:format("Remote Response is ~p~n", [ Resp]),
-			ModifiedResp = Resp#emxstoreconfig { location = Node, tableid = { remote, Node }},
-			util_data:put_data(ConfigHandle, ModifiedResp),
-			ModifiedResp
+			case Resp of
+				{badrpc, _} ->
+						get_location_for_new_table(TableId, ConfigHandle, ExcludeNodes ++ [ Node ]);
+				Resp ->
+					io:format("Remote Response is ~p~n", [ Resp]),
+					ModifiedResp = Resp#emxstoreconfig { location = [ Node ], tableid = { remote }},
+					util_data:put_data(ConfigHandle, ModifiedResp),
+					ModifiedResp
+			end
 	end.
 	
 	

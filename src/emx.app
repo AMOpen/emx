@@ -15,8 +15,16 @@
 	{webport, 8665 },
 	{weblogdir, "c:\\clouddata"},
 	{emxconfig, {ets, [{keypos, 2}]}},
-	{defaultstore, { emxstoreconfig, "default", ets, [{keypos, 2}], false, undefined, [ { records, 5000 }, {age, 3600}, { size, 50000000}],0,local }},
-	{nodes, [local, emx2@localhost] },
+	{defaultstore, { 
+		emxstoreconfig, 
+		"default", 
+		ets, 
+		[{keypos, 2}], 
+		undefined, 
+		[ { records, 5000 }, {age, 3600}, { size, 50000000}],
+		0,
+		system }},
+	{nodes, [emx1@localhost, emx2@localhost] },
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},
