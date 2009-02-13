@@ -221,6 +221,9 @@ handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
 	
 	{reply, ok, ConfigHandle}.
 	
+processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count == 0 ->
+	util_data:delete_data(ConfigHandle, TableInfo#emxstoreconfig.typename);
+	
 processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
 	NewTableId = util_data:get_handle(TableInfo#emxstoreconfig.storagetype, TableInfo#emxstoreconfig.typename, TableInfo#emxstoreconfig.storageoptions),
 	NodeList = TableInfo#emxstoreconfig.location ++ [ node() ],
@@ -232,23 +235,26 @@ processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
 	DataList = rpc:call(TestNode, emx_data, get_datakeys, [ TableInfo#emxstoreconfig.typename, 0]),
 	case DataList of
 		{badrpc, _ } -> someerror;
+		{datainfo, { MaxEpoch, [] }} ->
+				%% Don't copy anything or inform of anything - this is an empty table!
+				donothing;
 		{datainfo, { MaxEpoch, List}} ->
 			lists:foreach(fun(Record) -> 
 				util_flogger:logMsg(self(), ?MODULE, debug, "Copying ~p", [ Record#emxcontent.displayname ]),
-				util_data:put_data(NewTableId, Record) end, List)
-	end,
-	%% Now inform all of the other nodes that have this table that we have it too
-	{ok, Nodes} = application:get_env(nodes),
-	MyNode = node(),
-	lists:foreach(
-		fun(Node) ->
-			util_flogger:logMsg(self(), ?MODULE, debug, "Informing ~p of the new node", [ Node]),
-			case Node of
-				MyNode -> nothing;
-				_ -> rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, MyNode]) 
-			end
-		end, 
-		Nodes);		
+				util_data:put_data(NewTableId, Record) end, List),
+				%% Now inform all of the other nodes that have this table that we have it too
+				{ok, Nodes} = application:get_env(nodes),
+				MyNode = node(),
+				lists:foreach(
+					fun(Node) ->
+						util_flogger:logMsg(self(), ?MODULE, debug, "Informing ~p of the new node", [ Node]),
+						case Node of
+							MyNode -> nothing;
+							_ -> rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, MyNode]) 
+						end
+					end, 
+				Nodes)
+	end;
 	
 processBalanceNode(ConfigHandle, TableInfo, true, Count) when Count > 2 ->
 	util_flogger:logMsg(self(), ?MODULE, debug, "Should remove balance ~p", [ TableInfo]);
@@ -257,9 +263,17 @@ processBalanceNode(ConfigHandle, TableInfo, true, _) ->
 	{ Size, Memory } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
 	case Size of
 		0 -> 
-		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]);
+		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]),
 		     %% Something different here
-		     %% emx_data:update_table_info(TableInfo#emxstoreconfig.typename, nodedown, node());	     
+		     MyNode = node(),
+		     {ok, Nodes} = application:get_env(nodes),
+		     lists:foreach(fun(Node) ->
+		     	case Node of
+				MyNode -> NewTableInfo = TableInfo#emxstoreconfig { location = lists:filter(fun(N) -> N /= MyNode end, TableInfo#emxstoreconfig.location) },
+					  util_data:put_data(ConfigHandle, NewTableInfo);
+				_ ->  rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodedown, MyNode ])
+			end
+		     end, Nodes);
 		_ -> util_flogger:logMsg(self(), ?MODULE, debug, "Do nothing with ~p", [ TableInfo])
 	end;
 processBalanceNode(ConfigHandle, TableInfo, _, _) ->
@@ -292,9 +306,9 @@ handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 			lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
 	case NewTableInfo#emxstoreconfig.location of
 		[] ->
-			util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table");
-			%%util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
-			%%util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
+			util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table"),
+			util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
+			util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
 		_ ->
 			util_data:put_data(ConfigHandle, NewTableInfo)
 	end,
