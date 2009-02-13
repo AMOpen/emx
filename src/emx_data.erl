@@ -34,15 +34,13 @@ start_link(_Arg) ->
 
 init(_) ->
     process_flag(trap_exit, true),
-    io:format("Starting emx_data~n"),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Starting emx_data"),
     {ok, {StorageType, Config}} = application:get_env(emxconfig),
-    io:format("Storage type ~p, Config ~p~n", [ StorageType, Config]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Storage type ~p, Config ~p", [ StorageType, Config]),
     {ok, Setup} = application:get_env(setupstore),
     {ok, DefaultStore} = application:get_env(defaultstore),
 
-    io:format("Calling get_handle ~p emxconfig, ~p", [ StorageType, Config]),
     ConfigHandle = util_data:get_handle(StorageType, emxconfig, Config),
-    io:format("Done~n"),
     case Setup of 
     	true ->
 		util_data:put_data(ConfigHandle, DefaultStore);
@@ -53,25 +51,26 @@ init(_) ->
     %% Also register interest in node information
     {ok, Nodes} = application:get_env(nodes),
     ThisNode = node(),
-    lists:foreach(fun(Node) ->
+    lists:any(fun(Node) ->
     		case Node of
-			local -> nothing;
-			ThisNode -> nothing;
+			local -> false;
+			ThisNode -> false;
 			Node -> 
 				%% Attempt to populate the ConfigHandle from this node
-				populate_from_node(Node, ConfigHandle),
-				erlang:monitor_node(Node, true)
+				Res = populate_from_node(Node, ConfigHandle),
+				erlang:monitor_node(Node, true),
+				Res
 		end
 		end, Nodes),
     {ok, ConfigHandle}.
 
 populate_from_node(Node, ConfigHandle) ->
 	Res = rpc:call(Node, emx_data, get_tables, []),
-	io:format("Response from populate_from_node is ~p~n", [ Res ]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Response from populate_from_node is ~p", [ Res ]),
 	%% We need to add any interesting table to our record, but also
 	%% change the tableid to remote
 	case Res of
-		{badrpc, _ } -> nothing;
+		{badrpc, _ } -> false;
 		_ ->
 			lists:foreach(fun(TableInfo) ->
 				case TableInfo#emxstoreconfig.typename of
@@ -80,7 +79,8 @@ populate_from_node(Node, ConfigHandle) ->
 						NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
 						util_data:put_data(ConfigHandle, NewTableInfo)
 				end
-				end, Res)
+				end, Res),
+			true
 	end.
 		
 	
@@ -123,7 +123,7 @@ update_constraints(TableId, Constraints) ->
     gen_server:call(?GD2, { updateConstraints, TableId, Constraints}, infinity).
     
 create_local_table(TableId) ->
-    io:format("Create local table for ~p~n", [ TableId]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Create local table for ~p", [ TableId]),
     gen_server:call(?GD2, { createLocalTable, TableId}, infinity).
     
 run_capacity(TableId) when is_atom(TableId) ->
@@ -148,24 +148,19 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     MyNode = node(),
     %% Save it to each node in the configuration
     lists:foreach(fun(Node) ->
-    	io:format("Storing in ~p~n", [ Node]),
     	case Node of
     		MyNode ->
 			%% Data is an emxstoreconfig record
-			io:format("is local save~n"),
 			CompressedData = util_zip:compress_record(Data),
 			%% Update epoch
 			UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
 			Res = util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
 			util_data:put_data(ConfigHandle, UpdatedEpoch);
 		Node ->
-			io:format("Making remote emx_data call ~n"),
-			Res = rpc:call(Node, emx_data, put_data, [ TableId, Data, remote]),
-			io:format("Finished remote emx_data call ~n")
+			Res = rpc:call(Node, emx_data, put_data, [ TableId, Data, remote])
 	end
 	end,
 	NewTableInfo#emxstoreconfig.location),
-    io:format("Finished put~n"),
     {reply, {datainfo, ok}, ConfigHandle};
 
 handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
@@ -180,11 +175,9 @@ handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
     MyNode = node(),
     case lists:any(fun(Node) -> Node == MyNode end, TableInfo#emxstoreconfig.location) of
     	true ->
-		io:format("getting data from local node~n"),
 		Res = util_data:get_data(TableInfo#emxstoreconfig.tableid, Key),
 		RealRes = lists:map(fun(Record) -> util_zip:decompress_record(Record) end, Res);
 	false ->
-		io:format("getting data from remote node~n"),
 		RealRes = get_remote_data(TableInfo#emxstoreconfig.location, [TableId, Key])
     end,
     {reply, {datainfo, RealRes}, ConfigHandle};
@@ -229,7 +222,6 @@ handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
 	{reply, ok, ConfigHandle}.
 	
 processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
-	io:format("Should balance ~p~n", [TableInfo]),
 	NewTableId = util_data:get_handle(TableInfo#emxstoreconfig.storagetype, TableInfo#emxstoreconfig.typename, TableInfo#emxstoreconfig.storageoptions),
 	NodeList = TableInfo#emxstoreconfig.location ++ [ node() ],
 	UpdatedTableInfo = TableInfo#emxstoreconfig { location = NodeList, tableid = NewTableId },
@@ -242,19 +234,36 @@ processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
 		{badrpc, _ } -> someerror;
 		{datainfo, { MaxEpoch, List}} ->
 			lists:foreach(fun(Record) -> 
-				io:format("Copying ~p~n", [ Record#emxcontent.displayname ]),
+				util_flogger:logMsg(self(), ?MODULE, debug, "Copying ~p", [ Record#emxcontent.displayname ]),
 				util_data:put_data(NewTableId, Record) end, List)
 	end,
 	%% Now inform all of the other nodes that have this table that we have it too
-	lists:foreach(fun(Node) ->
-		io:format("Informing ~p of the new node ~n", [ Node]),
-		rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, node()]) end, TableInfo#emxstoreconfig.location);
-			
+	{ok, Nodes} = application:get_env(nodes),
+	MyNode = node(),
+	lists:foreach(
+		fun(Node) ->
+			util_flogger:logMsg(self(), ?MODULE, debug, "Informing ~p of the new node", [ Node]),
+			case Node of
+				MyNode -> nothing;
+				_ -> rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, MyNode]) 
+			end
+		end, 
+		Nodes);		
 	
 processBalanceNode(ConfigHandle, TableInfo, true, Count) when Count > 2 ->
-	io:format("Should remove balance ~p~n", [ TableInfo]);
+	util_flogger:logMsg(self(), ?MODULE, debug, "Should remove balance ~p", [ TableInfo]);
+processBalanceNode(ConfigHandle, TableInfo, true, _) ->
+	%% Check number of records. If there are none, remove us from the table
+	{ Size, Memory } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
+	case Size of
+		0 -> 
+		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]);
+		     %% Something different here
+		     %% emx_data:update_table_info(TableInfo#emxstoreconfig.typename, nodedown, node());	     
+		_ -> util_flogger:logMsg(self(), ?MODULE, debug, "Do nothing with ~p", [ TableInfo])
+	end;
 processBalanceNode(ConfigHandle, TableInfo, _, _) ->
-	io:format("Do nothing with ~p~n", [TableInfo]).
+	donothing.
 	
 collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	case Record#emxcontent.epoch > TestEpoch of
@@ -283,20 +292,21 @@ handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 			lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
 	case NewTableInfo#emxstoreconfig.location of
 		[] ->
-			util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename);
+			util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table");
+			%%util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
+			%%util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
 		_ ->
 			util_data:put_data(ConfigHandle, NewTableInfo)
 	end,
 	{noreply, ConfigHandle};
 
 handle_cast({updateTableInfo, TableId, nodeup, Node }, ConfigHandle) ->
-	io:format("Processing node up~n"),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Processing node up for ~p", [Node]),
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	NewTableInfo = TableInfo#emxstoreconfig { location = TableInfo#emxstoreconfig.location ++ [ Node ] },
 	util_data:put_data(ConfigHandle, NewTableInfo),
 	%% There is no harm in monitoring this node again
 	erlang:monitor_node(Node, true),
-	io:format("Finished processing node up~n"),
 	{noreply, ConfigHandle};
 	
 
@@ -306,7 +316,6 @@ handle_cast({putData, TableId, Data}, ConfigHandle) ->
     MyNode = node(),
     case lists:any(fun(Node) -> Node == MyNode end, NewTableInfo#emxstoreconfig.location) of
     	true ->
-		io:format("is local save~n"),
 		CompressedData = util_zip:compress_record(Data),
 		%% Update epoch
 		UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
@@ -315,28 +324,25 @@ handle_cast({putData, TableId, Data}, ConfigHandle) ->
 	false ->
 		nothingtodo
 	end,
-    io:format("Finished put~n"),
     {noreply, ConfigHandle};
     
 handle_cast(Msg, N) -> 
-	io:format("Received cast ~p~n", [ Msg ]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Received cast ~p", [ Msg ]),
 	{noreply, N}.
 
 
 handle_info({nodedown, Node}, ConfigHandle) ->
-	io:format("Node ~p is down~n", [ Node]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Node ~p is down", [ Node]),
 	%% Remove node from each table that has it
 	util_data:foldl(fun(TableInfo, AccIn) -> emx_data:update_table_info(TableInfo#emxstoreconfig.typename, nodedown, Node), AccIn end, [], ConfigHandle), 
 	{noreply, ConfigHandle};
 	
 handle_info(Info, N) -> 
-	io:format("Received info ~p~n", [ Info ]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Received info ~p", [ Info ]),
 	{noreply, N}.
 	
 getTableInfo(TableId, ConfigHandle) ->
-	%%io:format("Config handle is ~p, Table id is ~p~n", [ ConfigHandle, TableId]),
 	TableInfo = util_data:get_data(ConfigHandle, TableId),
-	%%io:format("Table info is ~p~n", [ TableInfo]),
 	case TableInfo of
 		[] ->
 			get_location_for_new_table(TableId, ConfigHandle);
@@ -364,12 +370,12 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 	%% The table should have no more than MaxCount records. If there are more than that,
 	%% remove them in age order until the number of records is below MaxCount
 	{ RecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-	%%io:format("Record count is ~p~n", [ RecordCount]),
 	case RecordCount > MaxCount of
 		true ->
 			%% need to remove
 			SortedList = get_all_sorted(TableConfig),
 			lists:takewhile(fun(Record) ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to keep number of records in limit", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
 				{ NewRecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
 				NewRecordCount > MaxCount
@@ -383,11 +389,11 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 run_constraint(TableConfig, { age, MaxAge }) ->
 	%% Remove all records older than MaxAge
 	TestTime = calendar:datetime_to_gregorian_seconds(calendar:local_time()) - MaxAge,	
-	%%io:format("Test time is ~p~n", [ TestTime]),
 	util_data:foldl(fun(Record, AccIn) ->
 		WriteTime = calendar:datetime_to_gregorian_seconds(Record#emxcontent.writetime),
 		case WriteTime < TestTime of
 			true ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p as it is old", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname);
 			false ->
 				ok
@@ -405,6 +411,7 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 			%% need to remove
 			SortedList = get_all_sorted(TableConfig),
 			lists:takewhile(fun(Record) ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to free up memory", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
 				%% Run garbage collect after deletion or the get_size method below will not return the correct
 				%% and up to date value. It makes the whole loop slower though
@@ -426,12 +433,11 @@ get_all_sorted(TableConfig) ->
 					Second > First end, UnsortedList). 
 
 low_create_local_table(TableId, ConfigHandle) ->
-        io:format("Getting low_create_local_table~n"),
+        util_flogger:logMsg(self(), ?MODULE, debug, "Getting low_create_local_table ~p", [TableId]),
 	[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
 	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = [ node() ] },
 	NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
 	RetTableInfo = NewTableInfo#emxstoreconfig { tableid = NewTableId },
-	io:format("Ret Table info is ~p~n", [ RetTableInfo]),
 	util_data:put_data(ConfigHandle, RetTableInfo),
 	{ok, PossibleNodes} = application:get_env(nodes),
 	MyNode = node(),
@@ -457,17 +463,14 @@ get_location_for_new_table(TableId, ConfigHandle, ExcludeNodes) ->
 	%% Now pick one (at random initially)
 	NodeToHost  = util_randomext:pickCount(RealList, 1),
 	MyNode = node(),
-	io:format("Node to host is ~p~n", [ NodeToHost] ),
 	case NodeToHost of
 		MyNode -> low_create_local_table(TableId, ConfigHandle);
 		Node  ->  
-			io:format("Making remote call to ~p~n", [ Node]),
 			Resp = rpc:call(Node, emx_data, create_local_table, [ TableId]),
 			case Resp of
 				{badrpc, _} ->
 						get_location_for_new_table(TableId, ConfigHandle, ExcludeNodes ++ [ Node ]);
 				Resp ->
-					io:format("Remote Response is ~p~n", [ Resp]),
 					ModifiedResp = Resp#emxstoreconfig { location = [ Node ], tableid = { remote }},
 					util_data:put_data(ConfigHandle, ModifiedResp),
 					ModifiedResp
@@ -478,11 +481,11 @@ get_remote_data([], Params) ->
 	#emxcontent{ };
 	
 get_remote_data([Node | T], Params) ->
-	io:format("trying ~p~n", [ Node]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Trying ~p", [Node]),
 	Res = rpc:call(Node, emx_data, get_data, Params),
 	case Res of
 		{badrpc, _ } -> 
-				io:format("failed, trying next~n"),
+				util_flogger:logMsg(self(), ?MODULE, debug, "failed, trying next"),
 				get_remote_data(T, Params);
 		{datainfo, Resp } -> Resp
 	end.
@@ -490,10 +493,11 @@ get_remote_data([Node | T], Params) ->
 get_remote_keys([], Params) ->
 	{ 0, [] };
 get_remote_keys([Node | T], Params) ->
-	io:format("Trying ~p~n", [ Node ]),
+	util_flogger:logMsg(self(), ?MODULE, debug, "Trying ~p", [Node]),
 	Res = rpc:call(Node, emx_data, get_datakeys, Params),
 	case Res of 
 		{badrpc, _ } ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "failed, trying next"),
 				get_remote_keys(T, Params);
 		{datainfo, Resp} -> Resp
 	end.

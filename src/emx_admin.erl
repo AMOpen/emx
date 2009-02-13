@@ -72,7 +72,6 @@ handle_call({putData, Key, Content}, _From, N) ->
     %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
     %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
     %% In the future this could be configurable by "type" (again, with a default of 2)
-    io:format("In put data~n"),
     Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content },
     Res = emx_data:put_data(getTableId(Key), Data, local),
     {reply, {datainfo, Res}, N};
@@ -97,14 +96,11 @@ handle_call({housekeep}, _From, N) ->
 	%% it ourselves, or perhaps giving up a table to other nodes
 	Tables = emx_data:get_tables(),
 	lists:foreach(fun(Table) ->
-		io:format("Running for ~p~n", [ Table#emxstoreconfig.typename]),
+		util_flogger:logMsg(self(), ?MODULE, debug, "Housekeep for ~p", [ Table#emxstoreconfig.typename]),
 		%% run_capacity handles remote tables itself
 		emx_data:run_capacity(Table#emxstoreconfig.typename),
-		io:format("Ran capacity, now running balancer~n"),
-		emx_data:run_balancer(Table#emxstoreconfig.typename),
-		io:format("Finished balancer~n")
+		emx_data:run_balancer(Table#emxstoreconfig.typename)
 		end, Tables),
-	io:format("Finished housekeep~n"),
 	{ reply, ok, N }.
     
 handle_cast(_Msg, N) -> {noreply, N}.

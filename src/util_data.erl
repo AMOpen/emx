@@ -27,7 +27,9 @@ get_handle(dets, TableName, Options) ->
 close_handle({ets, TableId}) ->
 	ets:delete(TableId);
 close_handle({dets, TableId}) ->
-	dets:close(TableId).
+	dets:close(TableId);
+close_handle(remote) ->
+	nothing.
 	
 foldl(Function, Acc0, {ets, TableId}) ->
 	ets:foldl(Function, Acc0, TableId);
