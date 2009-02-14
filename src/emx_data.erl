@@ -88,7 +88,12 @@ closer(Record, AccIn) ->
 	case Record#emxstoreconfig.tableid of
 		undefined -> AccIn;
 		null -> AccIn;
-		TableId -> util_data:close_handle(TableId), AccIn
+		TableId ->
+			case lists:any(fun(Node) -> Node == node() end, Record#emxstoreconfig.location) of
+				true ->	util_data:close_handle(TableId);
+				false -> nothing
+			end,
+			AccIn
 	end.
 	
 terminate(_Reason, ConfigHandle) ->
@@ -203,7 +208,7 @@ handle_call({createLocalTable, TableId}, _From, ConfigHandle) ->
 handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
 	%% Load the capacity constraints for the given tablename, then run them...
 	TableInfo = getTableInfo(TableId, ConfigHandle),
-	run_constraints(TableInfo, TableInfo#emxstoreconfig.capacityconstraints),
+	emx_data_constraints:run_constraints(TableInfo, TableInfo#emxstoreconfig.capacityconstraints),
 	{reply, ok, ConfigHandle};
     
 handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
@@ -217,67 +222,10 @@ handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
 	HasLocalCopy = lists:any(fun(Node) -> Node == OurNode end, TableInfo#emxstoreconfig.location),
 	Count = length(TableInfo#emxstoreconfig.location),
 	
-	processBalanceNode(ConfigHandle, TableInfo, HasLocalCopy, Count),
+	emx_data_balancer:processBalanceNode(ConfigHandle, TableInfo, HasLocalCopy, Count),
 	
 	{reply, ok, ConfigHandle}.
 	
-processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count == 0 ->
-	util_data:delete_data(ConfigHandle, TableInfo#emxstoreconfig.typename);
-	
-processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
-	NewTableId = util_data:get_handle(TableInfo#emxstoreconfig.storagetype, TableInfo#emxstoreconfig.typename, TableInfo#emxstoreconfig.storageoptions),
-	NodeList = TableInfo#emxstoreconfig.location ++ [ node() ],
-	UpdatedTableInfo = TableInfo#emxstoreconfig { location = NodeList, tableid = NewTableId },
-	util_data:put_data(ConfigHandle, UpdatedTableInfo),
-	%% Now we also need to copy over data from the other node
-	[TestNode | _ ] = TableInfo#emxstoreconfig.location,
-	
-	DataList = rpc:call(TestNode, emx_data, get_datakeys, [ TableInfo#emxstoreconfig.typename, 0]),
-	case DataList of
-		{badrpc, _ } -> someerror;
-		{datainfo, { MaxEpoch, [] }} ->
-				%% Don't copy anything or inform of anything - this is an empty table!
-				donothing;
-		{datainfo, { MaxEpoch, List}} ->
-			lists:foreach(fun(Record) -> 
-				util_flogger:logMsg(self(), ?MODULE, debug, "Copying ~p", [ Record#emxcontent.displayname ]),
-				util_data:put_data(NewTableId, Record) end, List),
-				%% Now inform all of the other nodes that have this table that we have it too
-				{ok, Nodes} = application:get_env(nodes),
-				MyNode = node(),
-				lists:foreach(
-					fun(Node) ->
-						util_flogger:logMsg(self(), ?MODULE, debug, "Informing ~p of the new node", [ Node]),
-						case Node of
-							MyNode -> nothing;
-							_ -> rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, MyNode]) 
-						end
-					end, 
-				Nodes)
-	end;
-	
-processBalanceNode(ConfigHandle, TableInfo, true, Count) when Count > 2 ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Should remove balance ~p", [ TableInfo]);
-processBalanceNode(ConfigHandle, TableInfo, true, _) ->
-	%% Check number of records. If there are none, remove us from the table
-	{ Size, Memory } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
-	case Size of
-		0 -> 
-		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]),
-		     %% Something different here
-		     MyNode = node(),
-		     {ok, Nodes} = application:get_env(nodes),
-		     lists:foreach(fun(Node) ->
-		     	case Node of
-				MyNode -> NewTableInfo = TableInfo#emxstoreconfig { location = lists:filter(fun(N) -> N /= MyNode end, TableInfo#emxstoreconfig.location) },
-					  util_data:put_data(ConfigHandle, NewTableInfo);
-				_ ->  rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodedown, MyNode ])
-			end
-		     end, Nodes);
-		_ -> util_flogger:logMsg(self(), ?MODULE, debug, "Do nothing with ~p", [ TableInfo])
-	end;
-processBalanceNode(ConfigHandle, TableInfo, _, _) ->
-	donothing.
 	
 collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	case Record#emxcontent.epoch > TestEpoch of
@@ -292,7 +240,8 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 
 	
 handle_cast({addRemoteTable, TableInfo}, ConfigHandle) ->
-	util_data:put_data(ConfigHandle, TableInfo),
+	NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
+	util_data:put_data(ConfigHandle, NewTableInfo),
 	lists:foreach(fun(Node) -> erlang:monitor_node(Node, true) end, TableInfo#emxstoreconfig.location),
 	{noreply, ConfigHandle};
 
@@ -361,90 +310,12 @@ getTableInfo(TableId, ConfigHandle) ->
 		[] ->
 			get_location_for_new_table(TableId, ConfigHandle);
 		[ Info | _ ] ->
-			Info
-	end.
-
-%% The following functions are to handle the removal of data from a cache to keep it within certain constraints
-%% Constraints are by memory use, number of records or age of documents.
-
-run_constraints(_TableConfig, []) ->
-	ok;
-run_constraints(TableConfig, [ H | T]) ->
-	case TableConfig#emxstoreconfig.location of
-		system -> null;
-		_ ->
-			case lists:any(fun(Node) -> Node == node() end, TableConfig#emxstoreconfig.location) of
-				true -> run_constraint(TableConfig, H);
-				false -> null
+			case Info#emxstoreconfig.location of
+				[] -> get_location_for_new_table(TableId, ConfigHandle);
+				_ -> Info
 			end
-	end,
-	run_constraints(TableConfig, T).
-	
-run_constraint(TableConfig, { records, MaxCount }) ->
-	%% The table should have no more than MaxCount records. If there are more than that,
-	%% remove them in age order until the number of records is below MaxCount
-	{ RecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-	case RecordCount > MaxCount of
-		true ->
-			%% need to remove
-			SortedList = get_all_sorted(TableConfig),
-			lists:takewhile(fun(Record) ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to keep number of records in limit", [ Record#emxcontent.displayname]),
-				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
-				{ NewRecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-				NewRecordCount > MaxCount
-				end, SortedList),
-			%% Run garbage collection after removing the data to ensure that future tests on memory use the correct figures
-			erlang:garbage_collect();				
-		false ->
-			nothingtodo
-	end;
-	
-run_constraint(TableConfig, { age, MaxAge }) ->
-	%% Remove all records older than MaxAge
-	TestTime = calendar:datetime_to_gregorian_seconds(calendar:local_time()) - MaxAge,	
-	util_data:foldl(fun(Record, AccIn) ->
-		WriteTime = calendar:datetime_to_gregorian_seconds(Record#emxcontent.writetime),
-		case WriteTime < TestTime of
-			true ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p as it is old", [ Record#emxcontent.displayname]),
-				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname);
-			false ->
-				ok
-		end,
-		erlang:garbage_collect(),
-		AccIn end, [], TableConfig#emxstoreconfig.tableid);
-		
-run_constraint(TableConfig, { size, MaxSize }) ->
-	%% The table should be smaller than MaxSize. If it is greater, remove records
-	%% in age order until the size is reduced below MaxSize
-	{ _, Memory } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-	%%io:format("Memory use is ~p~n", [ Memory]),
-	case Memory > MaxSize of
-		true ->
-			%% need to remove
-			SortedList = get_all_sorted(TableConfig),
-			lists:takewhile(fun(Record) ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to free up memory", [ Record#emxcontent.displayname]),
-				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
-				%% Run garbage collect after deletion or the get_size method below will not return the correct
-				%% and up to date value. It makes the whole loop slower though
-				erlang:garbage_collect(),
-				{ _, NewMemory } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
-				NewMemory > MaxSize
-				end, SortedList);
-		false ->
-			nothingtodo
 	end.
 
-%% Get data from a table and sort it by age
-
-get_all_sorted(TableConfig) ->
-	UnsortedList = util_data:foldl(fun(Record, AccIn) -> AccIn ++ [ Record ] end, [], TableConfig#emxstoreconfig.tableid),
-	lists:sort(fun(Elem1, Elem2) -> 
-					First = calendar:datetime_to_gregorian_seconds(Elem1#emxcontent.writetime),
-					Second = calendar:datetime_to_gregorian_seconds(Elem2#emxcontent.writetime),
-					Second > First end, UnsortedList). 
 
 low_create_local_table(TableId, ConfigHandle) ->
         util_flogger:logMsg(self(), ?MODULE, debug, "Getting low_create_local_table ~p", [TableId]),

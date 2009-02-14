@@ -5,7 +5,9 @@
 put_data({ets, TableId}, Value) ->
 	ets:insert(TableId, Value);
 put_data({dets, TableId}, Value) ->
-	dets:insert(TableId, Value).
+	dets:insert(TableId, Value);
+put_data(remote, Value) ->
+	nothing.
 	
 get_data({ets, TableId}, Key) ->
 	ets:lookup(TableId, Key);
