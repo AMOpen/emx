@@ -17,4 +17,4 @@ out(Arg) ->
     ReqPath = util_yaws:get_path(Req),
     DisplayName = string:join(lists:nthtail(2, string:tokens(ReqPath, "/")), "/"),
     {datainfo, BackRecord} = emx_admin:get_data(DisplayName),
-    util_yaws:make_response(200, BackRecord#emxcontent.content).
+    util_yaws:make_response(200, BackRecord#emxcontent.encoding, BackRecord#emxcontent.content).

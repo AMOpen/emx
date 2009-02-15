@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, get_data/1, get_datakeys/2, get_datakeys/1, housekeep/0]).
+-export([put_data/2, put_file/3, put_data/3, get_data/1, get_datakeys/2, get_datakeys/1, housekeep/0]).
 
 -include_lib("records.hrl").
 
@@ -44,8 +44,16 @@ code_change(_OldVsn, N, _Extra) -> {ok, N}.
 
 %% API FUNCTIONS
 
+put_file(Key, FileName, FileType) ->
+	%% Load the file into content, and call put data with that content and FileType
+	{ok, Content} = file:read_file(FileName),
+	put_data(Key, Content, FileType).
+
 put_data(Key, Content) ->
-    gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content}, infinity).
+    put_data(Key, Content, "application/xml").
+	
+put_data(Key, Content, Encoding) ->
+    gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content, Encoding}, infinity).
     
 get_data(Key) ->
     gen_server:call(?GD2, {getData, Key}, 2000).
@@ -68,11 +76,11 @@ getTableId(Key) ->
 %% API HANDLING FUNCTIONS
 
 %% TODO: Add writeUser to this call
-handle_call({putData, Key, Content}, _From, N) ->
+handle_call({putData, Key, Content, Encoding}, _From, N) ->
     %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
     %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
     %% In the future this could be configurable by "type" (again, with a default of 2)
-    Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content },
+    Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content, encoding = Encoding },
     Res = emx_data:put_data(getTableId(Key), Data, local),
     {reply, {datainfo, Res}, N};
    

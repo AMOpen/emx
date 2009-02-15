@@ -156,6 +156,7 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     	case Node of
     		MyNode ->
 			%% Data is an emxstoreconfig record
+			io:format("Data is ~p~n", [ Data]),
 			CompressedData = util_zip:compress_record(Data),
 			%% Update epoch
 			UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  

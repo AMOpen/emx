@@ -1,7 +1,7 @@
 %% Records used in EMX
 
 %% Stored in a config (d)ets table
--record(emxcontent, { displayname, writetime, writeuser, content, content_type, epoch}).
+-record(emxcontent, { displayname, writetime, writeuser, content, content_type, encoding, epoch}).
 
 %% Config for a store
 %% location is an array of nodes on which this table is hosted - by default the current node
