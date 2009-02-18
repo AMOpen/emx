@@ -45,13 +45,12 @@ code_change(_OldVsn, N, _Extra) -> {ok, N}.
 %% API FUNCTIONS
 
 put_file(Key, FileName, FileType) ->
-	%% Load the file into content, and call put data with that content and FileType
-	{ok, Content} = file:read_file(FileName),
-	put_data(Key, Content, FileType).
-
+    {ok, Content} = file:read_file(FileName),
+    put_data(Key, Content, FileType).
+    
 put_data(Key, Content) ->
     put_data(Key, Content, "application/xml").
-	
+    
 put_data(Key, Content, Encoding) ->
     gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content, Encoding}, infinity).
     

@@ -56,15 +56,18 @@ processBalanceNode(ConfigHandle, TableInfo, true, _) ->
 	%% Check number of records. If there are none, remove us from the table
 	{ Size, Memory } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
 	case Size of
-		0 -> 
+%%		0 ->
+	        -999 ->		%% Effectively comment out for now
 		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]),
 		     %% Something different here
 		     MyNode = node(),
 		     {ok, Nodes} = application:get_env(nodes),
 		     lists:foreach(fun(Node) ->
 		     	case Node of
-				MyNode -> NewTableInfo = TableInfo#emxstoreconfig { location = lists:filter(fun(N) -> N /= MyNode end, TableInfo#emxstoreconfig.location) },
-					  util_data:put_data(ConfigHandle, NewTableInfo);
+				MyNode -> NewTableInfo = TableInfo#emxstoreconfig { location = lists:filter(fun(N) -> N /= MyNode end, TableInfo#emxstoreconfig.location), tableid = remote },
+					  util_data:put_data(ConfigHandle, NewTableInfo),
+					  %% Also need to remove the table!
+					  util_data:close_handle(TableInfo#emxstoreconfig.tableid);
 				_ ->  rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodedown, MyNode ])
 			end
 		     end, Nodes);

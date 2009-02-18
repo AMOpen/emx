@@ -21,10 +21,10 @@
 		ets, 
 		[{keypos, 2}], 
 		undefined, 
-		[ { records, 1000 }, {age, 3600}, { size, 50000000}],
+		[ { records, 10000 }, {age, 1200}, { size, 50000000}],
 		0,
 		system }},
-	{nodes, [emx1@localhost, emx2@localhost] },
+	{nodes, [emx1@localhost, emx2@localhost, emx3@localhost] },
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},

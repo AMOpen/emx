@@ -36,7 +36,9 @@ close_handle(remote) ->
 foldl(Function, Acc0, {ets, TableId}) ->
 	ets:foldl(Function, Acc0, TableId);
 foldl(Function, Acc0, {dets, TableId}) ->
-	dets:foldl(Function, Acc0, TableId).
+	dets:foldl(Function, Acc0, TableId);
+foldl(Function, Acc0, remote) ->
+	{ 0, none, []}.
 	
 %% Returns { #of records, #memory used }	
 get_size({ets, TableId}) ->

@@ -156,7 +156,6 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     	case Node of
     		MyNode ->
 			%% Data is an emxstoreconfig record
-			io:format("Data is ~p~n", [ Data]),
 			CompressedData = util_zip:compress_record(Data),
 			%% Update epoch
 			UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
@@ -232,7 +231,10 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 	case Record#emxcontent.epoch > TestEpoch of
 		true ->
 			NewKeys = Keys ++ [ util_zip:decompress_record(Record) ],
-			NewMaxEpoch = Record#emxcontent.epoch;
+			case Record#emxcontent.epoch > MaxEpoch of
+				true ->	NewMaxEpoch = Record#emxcontent.epoch;
+				false -> NewMaxEpoch = MaxEpoch
+			end;
 		false ->
 			NewKeys = Keys,
 			NewMaxEpoch = MaxEpoch
@@ -251,16 +253,23 @@ handle_cast({updateTableInfo, "default", nodedown, Node }, ConfigHandle) ->
 
 handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 	%% The node passed is no longer hosting this table, so remove it from the list
-	TableInfo = getTableInfo(TableId, ConfigHandle),
-	NewTableInfo = TableInfo#emxstoreconfig { location = 
-			lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
-	case NewTableInfo#emxstoreconfig.location of
-		[] ->
-			util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table"),
-			util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
-			util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
-		_ ->
-			util_data:put_data(ConfigHandle, NewTableInfo)
+	%% Only remove it if we know about it
+	case tableExists(TableId, ConfigHandle) of
+		true ->
+			TableInfo = getTableInfo(TableId, ConfigHandle),
+			NewTableInfo = TableInfo#emxstoreconfig { location = 
+				lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
+				case NewTableInfo#emxstoreconfig.location of
+					[] ->
+						util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table"),
+						util_data:put_data(ConfigHandle, NewTableInfo);
+						%%util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
+						%%util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
+					_ ->
+						util_data:put_data(ConfigHandle, NewTableInfo)
+				end;
+		false ->
+			donothing
 	end,
 	{noreply, ConfigHandle};
 
@@ -304,6 +313,13 @@ handle_info({nodedown, Node}, ConfigHandle) ->
 handle_info(Info, N) -> 
 	util_flogger:logMsg(self(), ?MODULE, debug, "Received info ~p", [ Info ]),
 	{noreply, N}.
+
+tableExists(TableId, ConfigHandle) ->
+	TableInfo = util_data:get_data(ConfigHandle, TableId),
+	case TableInfo of
+		[] -> false;
+		_ -> true
+	end.
 	
 getTableInfo(TableId, ConfigHandle) ->
 	TableInfo = util_data:get_data(ConfigHandle, TableId),

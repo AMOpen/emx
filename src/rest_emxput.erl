@@ -19,7 +19,7 @@ handle_tokenRequest('POST',
 	  RealQueryData = convertData(Vars),
 	  DisplayName = proplists:get_value(displayName, RealQueryData),
 	  util_flogger:logMsg(self(), ?MODULE, debug, "Store ~p", [ DisplayName]),
-	  Resp = emx_admin:put_data(DisplayName, proplists:get_value(content, RealQueryData)),
+	  Resp = emx_admin:put_data(DisplayName, proplists:get_value(xml, RealQueryData)),
 	  util_yaws:make_response(200,
 			    util_string:format("<response>~p</response>",
 							[Resp]));
@@ -33,10 +33,10 @@ convertData(RequestArray) ->
     %% the value will also be a string, we want to attempt to convert that depending on the prefix of the atom
     [convertData_1(V1) || V1 <- RequestArray].
 
-convertData_1({"contentencode", Value}) ->
+convertData_1({"xmlencode", Value}) ->
     String = base64:mime_decode_to_string(replaceSpace(Value)),
     %%io:format("Decode is ~p~n", [ String ]),
-    {content, String};    
+    {xml, String};    
        
 convertData_1({Key, Value}) ->
     {list_to_atom(Key), Value}.
