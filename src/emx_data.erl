@@ -66,7 +66,6 @@ init(_) ->
 
 populate_from_node(Node, ConfigHandle) ->
 	Res = rpc:call(Node, emx_data, get_tables, []),
-	util_flogger:logMsg(self(), ?MODULE, debug, "Response from populate_from_node is ~p", [ Res ]),
 	%% We need to add any interesting table to our record, but also
 	%% change the tableid to remote
 	case Res of
@@ -77,6 +76,7 @@ populate_from_node(Node, ConfigHandle) ->
 					"default" -> dontdothis;
 					_ ->  
 						NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
+						util_flogger:logMsg(self(), ?MODULE, debug, "Copying info about ~p", [ TableInfo#emxstoreconfig.typename]),
 						util_data:put_data(ConfigHandle, NewTableInfo)
 				end
 				end, Res),
@@ -159,9 +159,11 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
 			CompressedData = util_zip:compress_record(Data),
 			%% Update epoch
 			UpdatedEpoch = NewTableInfo#emxstoreconfig{ epoch = NewTableInfo#emxstoreconfig.epoch + 1 },  
-			Res = util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
+			util_data:put_data(NewTableInfo#emxstoreconfig.tableid, CompressedData#emxcontent{ epoch = UpdatedEpoch#emxstoreconfig.epoch }),
 			util_data:put_data(ConfigHandle, UpdatedEpoch);
 		Node ->
+			%% The final atom remote here will initiate a different path of execution on the remote server,
+			%% basically being a cast instead of a call, and without the fan out to other nodes.
 			Res = rpc:call(Node, emx_data, put_data, [ TableId, Data, remote])
 	end
 	end,

@@ -32,7 +32,7 @@ start_link(_Arg) ->
 
 init(_) ->
     process_flag(trap_exit, true),
-    io:format("~p starting ~n", [?MODULE]),
+    util_flogger:logMsg(self(), ?MODULE, debug, "starting"),
     {ok, paused, {[], null}}.
 
 checkStartup() ->
@@ -49,19 +49,27 @@ paused(ping, State) ->
 
 stopped(timeout, State) ->
     %% Spawn a thread to do the deliver run
-    spawn(?MODULE, housekeep, []),
-    {next_state, running, State}.
+    spawn_link(?MODULE, housekeep, []),
+    {next_state, running, State, 120000}.
 
+running(timeout, State) ->
+    util_flogger:logMsg(self(), ?MODULE, debug, "Housekeeping timeout"),
+    {next_state, stopped, State, 30000};
+    
 running(finished, State) ->
     {next_state, stopped, State, 30000}.
 
 housekeep() ->
     emx_admin:housekeep(),
+    util_flogger:logMsg(self(), ?MODULE, debug, "Signal finished state"),
     gen_fsm:send_event(?GD2, finished).
 
-handle_info(_Info, State, N) -> {nextstate, State, N}.
+handle_info(Info, State, N) -> 
+    util_flogger:logMsg(self(), ?MODULE, debug, "Received info message ~p", [ Info ]),
+    {next_state, stopped, State, 30000}.
 
-handle_event(_Event, _StateName, _StateData) ->
+handle_event(Event, _StateName, _StateData) ->
+    util_flogger:logMsg(self(), ?MODULE, debug, "Received even ~p", [ Event ]),
     {paused, start, []}.
 
 handle_sync_event(_Event, _StateName, _Stuff,

@@ -12,7 +12,7 @@
 -export([start_link/1, code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
--export([put_data/2, put_file/3, put_data/3, get_data/1, get_datakeys/2, get_datakeys/1, housekeep/0]).
+-export([put_data/2, put_file/3, put_data/3, get_data/1, get_datakeys/2, get_datakeys/1, housekeep/0, get_prefixes/0]).
 
 -include_lib("records.hrl").
 
@@ -52,11 +52,15 @@ put_data(Key, Content) ->
     put_data(Key, Content, "application/xml").
     
 put_data(Key, Content, Encoding) ->
-    gen_server:call(?GD2, {putData, string:join(string:tokens(Key, " "), "_"), Content, Encoding}, infinity).
+    %% We convert any spaces in the key to _
+    gen_server:call(?GD2, {putData, normaliseKey(Key), Content, Encoding}, infinity).
     
 get_data(Key) ->
-    gen_server:call(?GD2, {getData, Key}, 2000).
+    gen_server:call(?GD2, {getData, normaliseKey(Key)}, 2000).
    
+get_prefixes() ->
+    gen_server:call(?GD2, {getPrefixes}, infinity).
+    
 get_datakeys(Prefix, EpochNumber) ->
     gen_server:call(?GD2, {getDataKeys, Prefix, EpochNumber}, infinity).
     
@@ -68,21 +72,36 @@ housekeep() ->
 
 %% LOCAL FUNCTIONS
 
+%% First two parts of key construct the table name
+%% e.g. official/fred/billy -> official_fred
+
 getTableId(Key) ->
     [ Protocol, Type | _ ] = string:tokens(Key, "/"),
     list_to_atom(string:join([ Protocol, Type ], "_")).
 
+normaliseKey(Key) ->
+	string:join(string:tokens(Key, " "), "~").
+	
+denormaliseTable(Table) when is_atom(Table) ->
+	One = string:join(string:tokens(atom_to_list(Table), "_"), "/"),
+	string:join(string:tokens(One, "~"), " ");
+denormaliseTable(Table) ->
+	Table.
+	
 %% API HANDLING FUNCTIONS
 
 %% TODO: Add writeUser to this call
 handle_call({putData, Key, Content, Encoding}, _From, N) ->
-    %% The Key is the key we want to use, and Content is the xml content we wish to store. We need to 
-    %% get the first 2 parts of the Key (parsed by /) to form the table_id to store the content in
-    %% In the future this could be configurable by "type" (again, with a default of 2)
+    %% emx_admin is responsible for working out the table name given a key, emx_data is responsible for storing that data and optionally
+    %% creating that table.
     Data = #emxcontent{ displayname = Key, writetime = calendar:local_time(), writeuser = anon, content = Content, encoding = Encoding },
     Res = emx_data:put_data(getTableId(Key), Data, local),
     {reply, {datainfo, Res}, N};
-   
+
+handle_call({getPrefixes}, _From, N) ->
+    Prefixes = [ denormaliseTable(Record#emxstoreconfig.typename) || Record <- emx_data:get_tables() ],	
+    {reply, Prefixes, N};
+    
 %% The epoch number implies that the caller has already seen all of the changes in the cache up to that point, and therefore
 %% would like to see the changes since that point. An Epoch number of 0 means everything.
 
@@ -92,7 +111,6 @@ handle_call({getDataKeys, Prefix, EpochNumber}, _From, N) ->
     
 handle_call({getData, Key}, _From, N) ->
     {datainfo, Res} = emx_data:get_data(getTableId(Key), Key),
-    %%io:format("Res is ~p~n", [ Res ]),
     case Res of 
     	[] -> { reply, nodata, N};
 	[ R | _] -> { reply, {datainfo, R}, N}
@@ -101,17 +119,21 @@ handle_call({getData, Key}, _From, N) ->
 handle_call({housekeep}, _From, N) ->
 	%% Get all tables, then run housekeep on each one, also see if we should be taking a copy of this table and hosting
 	%% it ourselves, or perhaps giving up a table to other nodes
-	Tables = emx_data:get_tables(),
 	lists:foreach(fun(Table) ->
 		util_flogger:logMsg(self(), ?MODULE, debug, "Housekeep for ~p", [ Table#emxstoreconfig.typename]),
-		%% run_capacity handles remote tables itself
 		emx_data:run_capacity(Table#emxstoreconfig.typename),
 		emx_data:run_balancer(Table#emxstoreconfig.typename)
-		end, Tables),
+		end, 
+	emx_data:get_tables()
+	),
 	{ reply, ok, N }.
     
-handle_cast(_Msg, N) -> {noreply, N}.
+handle_cast(Msg, N) ->
+	util_flogger:logMsg(self(), ?MODULE, debug, "Unexpected cast message ~p", [ Msg ]),
+	{noreply, N}.
 
-handle_info(_Info, N) -> {noreply, N}.
+handle_info(Info, N) ->
+	util_flogger:logMsg(self(), ?MODULE, debug, "Unexpected info message ~p", [ Info ]),
+	{noreply, N}.
 
 			

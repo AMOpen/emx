@@ -20,7 +20,11 @@
 show_widget(Arg) ->
         %% Display a list of the current clouds
 	Tables = emx_data:get_tables(),
-	Rows = lists:map(fun(C) -> transformRow(C) end,Tables), 
+	Rows = lists:map(fun(C) -> transformRow(C) end,Tables),
+	{TotalRecords, TotalEpoch, TotalMemory } = lists:foldl(fun(Table, { CurrentRecords, CurrentEpoch, CurrentMemory }) ->
+				{Records, Memory} = util_data:get_size(Table#emxstoreconfig.tableid),
+				{CurrentRecords + Records, CurrentEpoch + Table#emxstoreconfig.epoch, CurrentMemory + Memory }
+				end, { 0, 0, 0}, Tables),
 	{ehtml,
 		{ table,
 		   [ { id, "tableList"}, {class, "tablesorter"}],
@@ -41,7 +45,23 @@ show_widget(Arg) ->
 				   }
 				 ]
 			},
-			{tbody, [], [ Rows]}
+			{tbody, [], [ Rows]},
+			{thead, [],
+				[ {tr, [], [
+					{th, [], ""},
+					{th, [], ""},
+					{th, [], ""},
+					{th, [], util_string:format("~p", [TotalRecords])},
+					{th, [], util_string:format("~p", [TotalEpoch])},
+					{th, [], util_string:format("~p", [TotalMemory])},
+					{th, [], ""},
+					{th, [], ""},	
+					{th, [], ""},
+					{th, [], "" }
+					]
+				   }
+				 ]
+			}
 		     ]		   
 		}
 	}.

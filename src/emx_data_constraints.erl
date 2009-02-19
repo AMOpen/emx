@@ -26,6 +26,9 @@ run_constraints(TableConfig, [ H | T]) ->
 			end
 	end,
 	run_constraints(TableConfig, T).
+
+run_constraint(_TableConfig, { records, infinity }) ->
+	nothingtodo;
 	
 run_constraint(TableConfig, { records, MaxCount }) ->
 	%% The table should have no more than MaxCount records. If there are more than that,
@@ -46,6 +49,9 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 		false ->
 			nothingtodo
 	end;
+
+run_constraint(_TableConfig, { age, infinity}) ->
+	nothingtodo;
 	
 run_constraint(TableConfig, { age, MaxAge }) ->
 	%% Remove all records older than MaxAge
@@ -61,6 +67,9 @@ run_constraint(TableConfig, { age, MaxAge }) ->
 		end,
 		erlang:garbage_collect(),
 		AccIn end, [], TableConfig#emxstoreconfig.tableid);
+
+run_constraint(_TableConfig, { size, infinity }) ->
+	nothingtodo;
 		
 run_constraint(TableConfig, { size, MaxSize }) ->
 	%% The table should be smaller than MaxSize. If it is greater, remove records
