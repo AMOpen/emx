@@ -38,6 +38,7 @@ show_widget(Arg) ->
 					{th, [], "Epoch"},
 					{th, [], "Memory"},
 					{th, [], "Max Records"},
+					{th, [], "Archive Age"},
 					{th, [], "Max Age"},	
 					{th, [], "Max Size"},
 					{th, [], "Action" }
@@ -55,9 +56,10 @@ show_widget(Arg) ->
 					{th, [], util_string:format("~p", [TotalEpoch])},
 					{th, [], util_string:format("~p", [TotalMemory])},
 					{th, [], ""},
+					{th, [], ""},
 					{th, [], ""},	
 					{th, [], ""},
-					{th, [], "" }
+					{th, [], ""}
 					]
 				   }
 				 ]
@@ -71,6 +73,7 @@ transformRow(Table) ->
 	MaxRecords = proplists:get_value(records, Table#emxstoreconfig.capacityconstraints),
 	MaxAge = proplists:get_value(age, Table#emxstoreconfig.capacityconstraints),
 	MaxMemory = proplists:get_value(size, Table#emxstoreconfig.capacityconstraints),
+	ArchiveAge = proplists:get_value(archive, Table#emxstoreconfig.capacityconstraints),
 	{ tr, [], [ 
 		{ td, [], util_string:format("~p", [Table#emxstoreconfig.typename]) },
 		{ td, [], getStorage(Table#emxstoreconfig.storagetype) },
@@ -79,6 +82,7 @@ transformRow(Table) ->
 		{ td, [], util_string:format("~p", [Table#emxstoreconfig.epoch]) },
 		{ td, [], util_string:format("~p", [Memory]) },
 		{ td, [], util_string:format("~p", [MaxRecords]) },
+		{ td, [], util_string:format("~p", [ArchiveAge]) },
 		{ td, [], util_string:format("~p", [MaxAge]) },
 		{ td, [], util_string:format("~p", [MaxMemory]) },
 		{ td, [
