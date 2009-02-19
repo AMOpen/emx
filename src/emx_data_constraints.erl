@@ -41,6 +41,7 @@ run_constraint(TableConfig, { records, MaxCount }) ->
 			lists:takewhile(fun(Record) ->
 				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to keep number of records in limit", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
+				util_zip:cleanup_record(Record),
 				{ NewRecordCount, _ } = util_data:get_size(TableConfig#emxstoreconfig.tableid),
 				NewRecordCount > MaxCount
 				end, SortedList),
@@ -61,7 +62,8 @@ run_constraint(TableConfig, { age, MaxAge }) ->
 		case WriteTime < TestTime of
 			true ->
 				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p as it is old", [ Record#emxcontent.displayname]),
-				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname);
+				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
+				util_zip:cleanup_record(Record);
 			false ->
 				ok
 		end,
@@ -83,6 +85,7 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 			lists:takewhile(fun(Record) ->
 				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to free up memory", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
+				util_zip:cleanup_record(Record),
 				%% Run garbage collect after deletion or the get_size method below will not return the correct
 				%% and up to date value. It makes the whole loop slower though
 				erlang:garbage_collect(),
@@ -91,8 +94,32 @@ run_constraint(TableConfig, { size, MaxSize }) ->
 				end, SortedList);
 		false ->
 			nothingtodo
-	end.
+	end;
+	
+run_constraint(TableConfig, { archive, ArchiveAge}) ->
+	%% Any records older than ArchiveAge that are not already extracted to file should be extracted to file
+	TestTime = calendar:datetime_to_gregorian_seconds(calendar:local_time()) - ArchiveAge,	
+	util_data:foldl(fun(Record, AccIn) ->
+		WriteTime = calendar:datetime_to_gregorian_seconds(Record#emxcontent.writetime),
+		IsArchived = getArchiveStatus(Record#emxcontent.content),
+		case {WriteTime < TestTime, IsArchived} of
+			{true, false} ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "Archiving ~p as it is old", [ Record#emxcontent.displayname]),
+				NewRecord = util_zip:archive_record(Record),
+				util_data:put_data(TableConfig#emxstoreconfig.tableid, NewRecord);
+			_ ->
+				ok
+		end,
+		erlang:garbage_collect(),
+		AccIn end, [], TableConfig#emxstoreconfig.tableid).
 
+getArchiveStatus({archived, _FileName}) ->
+	true;
+getArchiveStatus({compressed, _Data}) ->
+	false;
+getArchiveStatus(_Data) ->
+	false.
+	
 %% Get data from a table and sort it by age
 
 get_all_sorted(TableConfig) ->
