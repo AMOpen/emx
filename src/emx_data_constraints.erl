@@ -104,9 +104,13 @@ run_constraint(TableConfig, { archive, ArchiveAge}) ->
 		IsArchived = getArchiveStatus(Record#emxcontent.content),
 		case {WriteTime < TestTime, IsArchived} of
 			{true, false} ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Archiving ~p as it is old", [ Record#emxcontent.displayname]),
 				NewRecord = util_zip:archive_record(Record),
-				util_data:put_data(TableConfig#emxstoreconfig.tableid, NewRecord);
+				case NewRecord of 
+					Record -> nothing;
+					_ ->
+						util_flogger:logMsg(self(), ?MODULE, debug, "Archived ~p as it is old", [ Record#emxcontent.displayname]),
+						util_data:put_data(TableConfig#emxstoreconfig.tableid, NewRecord)
+				end;
 			_ ->
 				ok
 		end,

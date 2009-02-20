@@ -33,6 +33,7 @@ start_link(_Arg) ->
 init(_) ->
     process_flag(trap_exit, true),
     util_flogger:logMsg(self(), ?MODULE, debug, "starting"),
+    timer:apply_after(1000, job_housekeep, checkStartup, []),
     {ok, paused, {[], null}}.
 
 checkStartup() ->

@@ -12,8 +12,7 @@
 %% External exports
 -export([start/0, stop/0]).
 
-%% Simple module to start and stop the cloud
-
+%% Simple module to start and stop the emx cache
 
 %% @doc Start the ecloud application
 %% @spec start() -> ok

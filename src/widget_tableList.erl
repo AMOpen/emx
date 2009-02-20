@@ -18,13 +18,14 @@
 -export([show_widget/1]).
 
 show_widget(Arg) ->
-        %% Display a list of the current clouds
 	Tables = emx_data:get_tables(),
-	Rows = lists:map(fun(C) -> transformRow(C) end,Tables),
-	{TotalRecords, TotalEpoch, TotalMemory } = lists:foldl(fun(Table, { CurrentRecords, CurrentEpoch, CurrentMemory }) ->
+	PreRows = lists:map(fun(C) -> transformRow(C) end,Tables),
+	Rows = lists:filter(fun(R) -> is_tuple(R) end, PreRows),
+	{TotalRecords, TotalEpoch, TotalMemory, InMemory, InArchive } = lists:foldl(fun(Table, { CurrentRecords, CurrentEpoch, CurrentMemory, CurrentInMemory, CurrentInArchive }) ->
 				{Records, Memory} = util_data:get_size(Table#emxstoreconfig.tableid),
-				{CurrentRecords + Records, CurrentEpoch + Table#emxstoreconfig.epoch, CurrentMemory + Memory }
-				end, { 0, 0, 0}, Tables),
+				{RecMemory, RecArchive} = util_data:foldl(fun collectStatus/2, {0,0}, Table#emxstoreconfig.tableid),
+				{CurrentRecords + Records, CurrentEpoch + Table#emxstoreconfig.epoch, CurrentMemory + Memory, CurrentInMemory + RecMemory, CurrentInArchive + RecArchive }
+				end, { 0, 0, 0, 0, 0}, Tables),
 	{ehtml,
 		{ table,
 		   [ { id, "tableList"}, {class, "tablesorter"}],
@@ -35,6 +36,8 @@ show_widget(Arg) ->
 					{th, [], "Storage"},
 					{th, [], "Location"},
 					{th, [], "Records"},
+					{th, [], "InMem" },
+					{th, [], "InArc" },
 					{th, [], "Epoch"},
 					{th, [], "Memory"},
 					{th, [], "Max Records"},
@@ -53,6 +56,8 @@ show_widget(Arg) ->
 					{th, [], ""},
 					{th, [], ""},
 					{th, [], util_string:format("~p", [TotalRecords])},
+					{th, [], util_string:format("~p", [InMemory])},
+					{th, [], util_string:format("~p", [InArchive])},
 					{th, [], util_string:format("~p", [TotalEpoch])},
 					{th, [], util_string:format("~p", [TotalMemory])},
 					{th, [], ""},
@@ -67,24 +72,42 @@ show_widget(Arg) ->
 		     ]		   
 		}
 	}.
+
+getColorClass(Value) when Value > 100 ->
+	[ {class, purple }];	
+getColorClass(Value) when Value > 50 ->
+	[ {class, blue }];	
+getColorClass(Value) when Value > 0 ->
+	[ {class, green }];
+getColorClass(_Value) ->
+	[].
+
+getBackColorClass(Value) when Value > 0 ->
+	[];
+getBackColorClass(Value) ->
+	[ {class, grey } ].
 	
 transformRow(Table) ->
 	{Records, Memory} = util_data:get_size(Table#emxstoreconfig.tableid),
+	{RecMemory, RecArchive} = util_data:foldl(fun collectStatus/2, {0,0}, Table#emxstoreconfig.tableid),
 	MaxRecords = proplists:get_value(records, Table#emxstoreconfig.capacityconstraints),
 	MaxAge = proplists:get_value(age, Table#emxstoreconfig.capacityconstraints),
 	MaxMemory = proplists:get_value(size, Table#emxstoreconfig.capacityconstraints),
 	ArchiveAge = proplists:get_value(archive, Table#emxstoreconfig.capacityconstraints),
+	
 	{ tr, [], [ 
-		{ td, [], util_string:format("~p", [Table#emxstoreconfig.typename]) },
-		{ td, [], getStorage(Table#emxstoreconfig.storagetype) },
-		{ td, [], util_string:format("~p", [Table#emxstoreconfig.location]) },
-		{ td, [], util_string:format("~p", [Records]) },
-		{ td, [], util_string:format("~p", [Table#emxstoreconfig.epoch]) },
-		{ td, [], util_string:format("~p", [Memory]) },
-		{ td, [], util_string:format("~p", [MaxRecords]) },
-		{ td, [], util_string:format("~p", [ArchiveAge]) },
-		{ td, [], util_string:format("~p", [MaxAge]) },
-		{ td, [], util_string:format("~p", [MaxMemory]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.typename]) },
+		{ td, getBackColorClass(Records), getStorage(Table#emxstoreconfig.storagetype) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.location]) },
+		{ td, getColorClass(Records), util_string:format("~p", [Records]) },
+		{ td, getColorClass(RecMemory), util_string:format("~p", [RecMemory]) },
+		{ td, getColorClass(RecArchive), util_string:format("~p", [RecArchive]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.epoch]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [Memory]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [MaxRecords]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [ArchiveAge]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [MaxAge]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [MaxMemory]) },
 		{ td, [
 			{ class, "clickable" },
 			{ rel, tablelink },
@@ -96,3 +119,9 @@ getStorage(ets) ->
 	"Memory";
 getStorage(dets) ->
 	"Disk".
+	
+collectStatus(Record, {InMem, InArc}) ->
+	case Record#emxcontent.content of
+		{ archived } -> { InMem, InArc+1};
+		 _ -> { InMem+1, InArc}
+	end.

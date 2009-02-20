@@ -46,7 +46,8 @@ set_conf([Host, Port, LogDir]) ->
 		    [{"/emx/put", rest_emxput},
 		     {"/emx/get", rest_emxget},
 		     {"/emx/getkeys", rest_emxgetkeys},
-		     {"/emx/getdata", rest_emxgetkeys}]},
+		     {"/emx/getdata", rest_emxgetkeys},
+		     {"/emx/gettables", rest_emxgetkeys}]},
     case catch yaws_api:setconf(GC, [[SC]]) of
       ok -> {ok, started};
       Error -> {stop, Error}

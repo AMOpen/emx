@@ -37,8 +37,8 @@ foldl(Function, Acc0, {ets, TableId}) ->
 	ets:foldl(Function, Acc0, TableId);
 foldl(Function, Acc0, {dets, TableId}) ->
 	dets:foldl(Function, Acc0, TableId);
-foldl(Function, Acc0, remote) ->
-	{ 0, none, []}.
+foldl(Function, Acc0, Token) when is_atom(Token) ->
+	Acc0.
 	
 %% Returns { #of records, #memory used }	
 get_size({ets, TableId}) ->

@@ -9,21 +9,26 @@
 
 -include_lib("records.hrl").
 
-compress_record(Data) ->
+compress_record(Data) when is_record(Data, emxcontent) ->
 	case Data#emxcontent.content of
 		{ compressed, Value } -> Data;
 		{ archived } -> Data;
 		Content -> Data#emxcontent { content = { compressed, zlib:compress(Content)} }
 	end.
 
-decompress_record(Data) ->
+decompress_record(Data) when is_record(Data, emxcontent) ->
 	case Data#emxcontent.content of
 		{ compressed, Value } -> Data#emxcontent { content = zlib:uncompress(Value) };
-		{ archived } -> Data#emxcontent { content = zlib:uncompress(util_bfile:load_content(Data#emxcontent.displayname)) };
+		{ archived } -> 
+				Content = util_bfile:load_content(Data#emxcontent.displayname),
+				case Content of
+					baddata ->  Data#emxcontent { content = undefined };
+					_ -> Data#emxcontent { content = zlib:uncompress(Content) }
+				end;
 		_ -> Data
 	end.
 	
-archive_record(Data) ->	
+archive_record(Data) when is_record(Data, emxcontent) ->	
 	%% Make sure data is compressed
 	case Data#emxcontent.content of
 		{ compressed, Value } -> 
@@ -32,10 +37,10 @@ archive_record(Data) ->
 			Data#emxcontent { content = { archived }};
 		{ archived } ->
 			Data;
-		Data -> archive_record(compress_record(Data))
+		_ -> archive_record(compress_record(Data))
 	end.
 
-cleanup_record(Data) ->
+cleanup_record(Data) when is_record(Data, emxcontent) ->
 	case Data#emxcontent.content of
 		{ archived } -> util_bfile:delete_content(Data#emxcontent.displayname);
 		_ -> nothing

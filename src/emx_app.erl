@@ -21,7 +21,6 @@ start_phase(Phase, Mode, Args) ->
     start_inner_phase(Phase, Mode, Args).
     
 start_inner_phase(jobs, _Mode, _Args) ->
-  job_housekeep:checkStartup(),
   ok.
   
 start(_Type, StartArgs) ->

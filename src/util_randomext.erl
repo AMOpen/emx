@@ -10,8 +10,14 @@
 -export([pickCount/2, randomString/1, rangeInt/2]).
 
 %% Return random int betweem low and high
-rangeInt(Low, High) ->
-    Low - 1 + random:uniform(1 + High - Low).
+rangeInt(Low, High) when High > Low ->
+    Low - 1 + random:uniform(1 + High - Low);
+    
+rangeInt(Low, High) when Low > High ->
+    rangeInt(High, Low);
+    
+rangeInt(Low, High) when Low == High ->
+    Low.
 
 %% pick N out of List at random
 

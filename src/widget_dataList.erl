@@ -14,7 +14,6 @@
 -export([show_widget/1]).
 
 show_widget(Arg) ->
-        %% Display a list of the current clouds
 	%% Get the id parameter which will be the table list to show the keys for
 	Args = yaws_api:parse_query(Arg),
 	%%io:format("Args are ~p~n", [ Args]),
