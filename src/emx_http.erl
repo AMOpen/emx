@@ -1,5 +1,6 @@
 -module(emx_http).
 
+-export([put_data/4, get_data/3, get_data_keys/4]).
 
 post(Url, Username, Password, Params) when is_binary(Username) ->
     post(Url, binary_to_list(Username), Password, Params);
@@ -10,17 +11,23 @@ post(Url, Username, Password, Params) when is_binary(Password) ->
 post(Url, Username, Password, Params) ->
     Encoded = binary_to_list(
     base64:encode(Username ++ ":" ++ Password)),
-    Headers =
-  [{"Authorization", "Basic " ++ Encoded}],
+    Headers = [],
+ %% [{"Authorization", "Basic " ++ Encoded}],
     ContentType = "application/x-www-form-urlencoded",
-    Body = twoorl_util:join([[Field,$=,yaws_api:url_encode(Val)] ||
+    Body = util_string:join([[Field,$=,yaws_api:url_encode(Val)] ||
         {Field,Val} <- Params], "&"),
     http:request(
       post,
       {Url, Headers, ContentType, iolist_to_binary(Body)}, [], []).
-      
-put_data(Server, Port, Key, Data)->
-     nothing.
+     
+
+put_data(Server, Port, Key, Data)->   
+     Params = [ { "displayName", Key},
+                { "xmlencode", base64:encode_to_string(Data) }
+	      ],
+     Url = util_string:format("http://~s:~p/emx/put", [ Server, Port ]),
+     io:format("Url is ~s~n", [ Url]),
+     post(Url, "alan", "fred", Params).
      
 get_data(Server, Port, Key) ->
      nothing.
