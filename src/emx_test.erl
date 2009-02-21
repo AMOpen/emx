@@ -9,12 +9,12 @@ test() ->
 	lists:foreach(fun(Id) ->
 		io:format("Running for ~p~n", [ Id ]),
 		run_for(util_string:format("official/system.~p", [Id]))
-		end, lists:seq(0, 10)).
+		end, lists:seq(0, 100)).
 	
 run_for(Prefix) ->
 	lists:foreach(fun(Id) ->
 		emx_admin:put_data(util_string:format("~s/~p", [ Prefix, Id]), util_string:format("<data>~p</data>", [Id]))
-		end, lists:seq(0, 10000)).
+		end, lists:seq(0, 100)).
 		
 	
 	

@@ -16,13 +16,13 @@ current_time() ->
 	
 should_bail(StartTime) ->
 	%% Current time
-	util_flogger:logMsg(self(), ?MODULE, debug, "Should bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
-	(StartTime + 10 - current_time()) < 0.
+	%%util_flogger:logMsg(self(), ?MODULE, debug, "Should bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
+	(StartTime + 2 - current_time()) < 0.
 	
 should_not_bail(StartTime) ->
 	%% Current time
-	util_flogger:logMsg(self(), ?MODULE, debug, "Should not bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
-	(StartTime + 10 - current_time()) > 0.		
+	%%util_flogger:logMsg(self(), ?MODULE, debug, "Should not bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
+	(StartTime + 2 - current_time()) > 0.		
 	
 %% The following functions are to handle the removal of data from a cache to keep it within certain constraints
 %% Constraints are by memory use, number of records or age of documents.
@@ -37,6 +37,7 @@ run_constraints2(TableConfig, [ H | T], StartTime) ->
 	%% We need to bail out if this is taking too long
 	case should_bail(StartTime) of
 		true ->
+			util_flogger:logMsg(self(),?MODULE,debug, "bail out housekeep"),
 			ok;
 		false ->
 			case TableConfig#emxstoreconfig.location of

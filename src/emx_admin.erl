@@ -119,13 +119,18 @@ handle_call({getData, Key}, _From, N) ->
 handle_call({housekeep}, _From, N) ->
 	%% Get all tables, then run housekeep on each one, also see if we should be taking a copy of this table and hosting
 	%% it ourselves, or perhaps giving up a table to other nodes
-	lists:foreach(fun(Table) ->
-		util_flogger:logMsg(self(), ?MODULE, debug, "Housekeep for ~p", [ Table#emxstoreconfig.typename]),
-		emx_data:run_capacity(Table#emxstoreconfig.typename),
-		emx_data:run_balancer(Table#emxstoreconfig.typename)
-		end, 
-	emx_data:get_tables()
-	),
+	{message_queue_len, Len } = erlang:process_info(self(), message_queue_len),
+	case Len > 100 of
+		true ->
+			util_flogger:logMsg(self(), ?MODULE, debug, "Too busy to run housekeeping");
+		false ->
+			lists:foreach(fun(Table) ->
+				util_flogger:logMsg(self(), ?MODULE, debug, "Housekeep for ~p", [ Table#emxstoreconfig.typename]),
+					emx_data:run_capacity(Table#emxstoreconfig.typename),
+					emx_data:run_balancer(Table#emxstoreconfig.typename)
+					end, 
+					emx_data:get_tables())
+		end,
 	{ reply, ok, N }.
     
 handle_cast(Msg, N) ->

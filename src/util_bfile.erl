@@ -13,7 +13,7 @@ get_table_keys(TablePrefix) ->
 	%%DataDir = "c:\\clouddata\\",
 	PrefixAsStringFolder = string:join(string:tokens(atom_to_list(TablePrefix), "_"), "\\"),
 	Prefix = string:join(string:tokens(atom_to_list(TablePrefix), "_"), "/"),
-	StartDirectory = atom_to_list(DataDir) ++ PrefixAsStringFolder,
+	StartDirectory = atom_to_list(DataDir) ++ "/" ++ PrefixAsStringFolder,
 	collectIn(StartDirectory, Prefix).
 
 collectIn(Folder, Prefix) ->
@@ -45,7 +45,7 @@ collectIn(Folder, Prefix) ->
 	
 get_real_file(Key) when is_list(Key) ->
 	{ok, DataDir } = application:get_env(datadir),
-	atom_to_list(DataDir) ++ Key.
+	atom_to_list(DataDir) ++ "/" ++ Key.
 
 save_content(Key, Content) when is_list(Key) ->
 	%% Assume Key can be converted to a filename
