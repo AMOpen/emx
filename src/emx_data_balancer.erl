@@ -57,25 +57,20 @@ processBalanceNode(_ConfigHandle, TableInfo, true, Count) when Count > 2 ->
 	util_flogger:logMsg(self(), ?MODULE, debug, "Should remove balance ~p", [ TableInfo#emxstoreconfig.typename]);
 	
 processBalanceNode(ConfigHandle, TableInfo, true, _) ->
-	%% Check number of records. If there are none, remove us from the table
-	{ Size, _Memory } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
-	case Size of
-%%		0 ->
-	        -999 ->		%% Effectively comment out for now
-		     util_flogger:logMsg(self(), ?MODULE, debug, "No data in table ~p, removing from my interest", [ TableInfo#emxstoreconfig.typename]),
-		     %% Something different here
-		     MyNode = node(),
-		     {ok, Nodes} = application:get_env(nodes),
-		     lists:foreach(fun(Node) ->
-		     	case Node of
-				MyNode -> NewTableInfo = TableInfo#emxstoreconfig { location = lists:filter(fun(N) -> N /= MyNode end, TableInfo#emxstoreconfig.location), tableid = remote },
-					  util_data:put_data(ConfigHandle, NewTableInfo),
-					  %% Also need to remove the table!
-					  util_data:close_handle(TableInfo#emxstoreconfig.tableid);
-				_ ->  rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodedown, MyNode ])
-			end
-		     end, Nodes);
+	%% Check number of records. If it is over a certain size, convert to a disk table if it isn't already	
+	{ Size, _Memory, _ } = util_data:get_size(TableInfo#emxstoreconfig.tableid),
+	Type = util_data:get_type(TableInfo#emxstoreconfig.tableid),
+	case { Size > 500, Type} of
+		{ true, ets} ->
+			util_flogger:logMsg(self(), ?MODULE, debug, "Converting memory table to disk table for ~p", [ TableInfo#emxstoreconfig.typename]),
+			NewTableInfo = TableInfo#emxstoreconfig { tableid = util_data:convert(TableInfo#emxstoreconfig.tableid, TableInfo#emxstoreconfig.typename) },
+			util_data:put_data(ConfigHandle, NewTableInfo);			
+		{ false, dets} ->
+			util_flogger:logMsg(self(), ?MODULE, debug, "Converting disk table to memory table for ~p", [ TableInfo#emxstoreconfig.typename]),
+			NewTableInfo = TableInfo#emxstoreconfig { tableid = util_data:convert(TableInfo#emxstoreconfig.tableid, TableInfo#emxstoreconfig.typename) },
+			util_data:put_data(ConfigHandle, NewTableInfo);			
 		_ -> nothing
 	end;
+	
 processBalanceNode(_ConfigHandle, _TableInfo, _, _) ->
 	donothing.

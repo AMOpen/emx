@@ -21,11 +21,11 @@ show_widget(Arg) ->
 	Tables = emx_data:get_tables(),
 	PreRows = lists:map(fun(C) -> transformRow(C) end,Tables),
 	Rows = lists:filter(fun(R) -> is_tuple(R) end, PreRows),
-	{TotalRecords, TotalEpoch, TotalMemory, InMemory, InArchive } = lists:foldl(fun(Table, { CurrentRecords, CurrentEpoch, CurrentMemory, CurrentInMemory, CurrentInArchive }) ->
-				{Records, Memory} = util_data:get_size(Table#emxstoreconfig.tableid),
+	{TotalRecords, TotalEpoch, TotalMemory, InMemory, DiskMemory, InArchive } = lists:foldl(fun(Table, { CurrentRecords, CurrentEpoch, CurrentMemory, CurrentInMemory, CurrentDiskMemory, CurrentInArchive }) ->
+				{Records, Memory, DiskMemory} = util_data:get_size(Table#emxstoreconfig.tableid),
 				{RecMemory, RecArchive} = util_data:foldl(fun collectStatus/2, {0,0}, Table#emxstoreconfig.tableid),
-				{CurrentRecords + Records, CurrentEpoch + Table#emxstoreconfig.epoch, CurrentMemory + Memory, CurrentInMemory + RecMemory, CurrentInArchive + RecArchive }
-				end, { 0, 0, 0, 0, 0}, Tables),
+				{CurrentRecords + Records, CurrentEpoch + Table#emxstoreconfig.epoch, CurrentMemory + Memory, CurrentInMemory + RecMemory, CurrentDiskMemory + DiskMemory, CurrentInArchive + RecArchive }
+				end, { 0, 0, 0, 0, 0, 0}, Tables),
 	{ehtml,
 		{ table,
 		   [ { id, "tableList"}, {class, "tablesorter"}],
@@ -40,6 +40,7 @@ show_widget(Arg) ->
 					{th, [], "InArc" },
 					{th, [], "Epoch"},
 					{th, [], "Memory"},
+					{th, [], "Disk"},
 					{th, [], "Max Records"},
 					{th, [], "Archive Age"},
 					{th, [], "Max Age"},	
@@ -60,6 +61,7 @@ show_widget(Arg) ->
 					{th, [], util_string:format("~p", [InArchive])},
 					{th, [], util_string:format("~p", [TotalEpoch])},
 					{th, [], util_string:format("~p", [TotalMemory])},
+					{th, [], util_string:format("~p", [DiskMemory])},
 					{th, [], ""},
 					{th, [], ""},
 					{th, [], ""},	
@@ -85,10 +87,10 @@ getColorClass(_Value) ->
 getBackColorClass(Value) when Value > 0 ->
 	[];
 getBackColorClass(Value) ->
-	[ {class, grey } ].
+	[].
 	
 transformRow(Table) ->
-	{Records, Memory} = util_data:get_size(Table#emxstoreconfig.tableid),
+	{Records, Memory, DiskMemory} = util_data:get_size(Table#emxstoreconfig.tableid),
 	{RecMemory, RecArchive} = util_data:foldl(fun collectStatus/2, {0,0}, Table#emxstoreconfig.tableid),
 	MaxRecords = proplists:get_value(records, Table#emxstoreconfig.capacityconstraints),
 	MaxAge = proplists:get_value(age, Table#emxstoreconfig.capacityconstraints),
@@ -97,13 +99,14 @@ transformRow(Table) ->
 	
 	{ tr, [], [ 
 		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.typename]) },
-		{ td, getBackColorClass(Records), getStorage(Table#emxstoreconfig.storagetype) },
+		{ td, getBackColorClass(Records), getStorage(util_data:get_type(Table#emxstoreconfig.tableid)) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.location]) },
 		{ td, getColorClass(Records), util_string:format("~p", [Records]) },
 		{ td, getColorClass(RecMemory), util_string:format("~p", [RecMemory]) },
 		{ td, getColorClass(RecArchive), util_string:format("~p", [RecArchive]) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [Table#emxstoreconfig.epoch]) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [Memory]) },
+		{ td, getBackColorClass(Records), util_string:format("~p", [DiskMemory]) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [MaxRecords]) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [ArchiveAge]) },
 		{ td, getBackColorClass(Records), util_string:format("~p", [MaxAge]) },
@@ -118,7 +121,11 @@ transformRow(Table) ->
 getStorage(ets) ->
 	"Memory";
 getStorage(dets) ->
-	"Disk".
+	"Disk";
+getStorage(system) ->
+	"System";
+getStorage(remote) ->
+	"Remote".
 	
 collectStatus(Record, {InMem, InArc}) ->
 	case Record#emxcontent.content of

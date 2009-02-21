@@ -21,7 +21,7 @@
 		ets, 
 		[{keypos, 2}], 
 		undefined, 
-		[ { records, 10000 }, {age, 3600}, {archive, 120}, { size, 50000000}],
+		[ { records, 20000 }, {age, 360}, {archive, 180}, { size, 50000000}],
 		0,
 		system }},
 	{nodes, [emx1@localhost, emx2@localhost, emx3@localhost] },

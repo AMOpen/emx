@@ -38,6 +38,7 @@ init([]) ->
 			permanent, 10000, worker, [Module] } end,
 			[ 
 			  emx_admin,
+			  emx_data,
 			  emx_restserver
 			]),
 			

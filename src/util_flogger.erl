@@ -12,7 +12,7 @@
 
 -behaviour(gen_server).
 
--export([doLog/6, logMsg/4, logMsg/5, start_link/1]).
+-export([doLog/7, logMsg/4, logMsg/5, start_link/1]).
 
 -export([code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
@@ -37,7 +37,7 @@ init(_) ->
 					   [node()]),
     util_flogger:logMsg(self(), ?MODULE, debug,
 			"~p starting", [?MODULE]),
-    {ok, {FileName, FileName ++ ".log", LogSize, LogTags}}.
+    {ok, {{FileName, FileName ++ ".log", LogSize, LogTags}, true}}.
 
 terminate(_Reason, _N) ->
     util_flogger:logMsg(self(), ?MODULE, debug,
@@ -51,26 +51,40 @@ code_change(_OldVsn, N, _Extra) -> {ok, N}.
 
 logMsg(Pid, Module, Priority, Msg) ->
     gen_server:cast(?GD2,
-		    {logmsg, Pid, Module, Priority, Msg, []}).
+		    {logmsg, Pid, Module, Priority, calendar:local_time(), Msg, []}).
 
 logMsg(Pid, Module, Priority, Msg, Params) ->
     gen_server:cast(?GD2,
-		    {logmsg, Pid, Module, Priority, Msg, Params}).
+		    {logmsg, Pid, Module, Priority, calendar:local_time(), Msg, Params}).
 
 handle_call(_Message, _From, N) -> {reply, ok, N}.
 
-handle_cast({logmsg, Pid, Module, Priority, Msg,
+handle_cast({logmsg, Pid, Module, Priority, When, Msg,
 	     Params},
-	    N) ->
-    doLog(Pid, Module, Priority, Msg, Params, N),
-    {noreply, N}.
+	    {N, LogOn}) ->
+    {message_queue_len, Len } = erlang:process_info(self(), message_queue_len),
+    case {LogOn, Len > 100} of
+    	{true, true} ->
+		NewState = { N, false},
+		doLog(self(), ?MODULE, debug, calendar:local_time(), "LOGGING SUSPENDED", [], N);
+	{true, false} ->
+		NewState = { N, LogOn},
+		doLog(Pid, Module, Priority, When, Msg, Params, N);
+	{false, false} ->
+		NewState = { N, true},
+		doLog(self(), ?MODULE, debug, calendar:local_time(), "LOGGING RESUMED", [], N),
+		doLog(Pid, Module, Priority, When, Msg, Params, N);
+	{false, true} ->
+		NewState = { N, LogOn}
+    end,
+    {noreply, NewState}.
 
-doLog(Pid, Module, Priority, Msg, Params, N) ->
+doLog(Pid, Module, Priority, When, Msg, Params, N) ->
     {FileRoot, LogFile, LogSize, LogTags} = N,
     case lists:any(fun (X) -> X == Priority end, LogTags) of
       true ->
 	  {{Year, Month, Day}, {Hour, Minute, Second}} =
-	      calendar:local_time(),
+	      When,
 	  case file:read_file_info(LogFile) of
 	    {ok, FileInfo} ->
 		if FileInfo#file_info.size > LogSize ->

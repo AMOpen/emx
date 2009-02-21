@@ -37,7 +37,6 @@ init([]) ->
 			{Module, start_link, [Args]},
 			permanent, 10000, worker, [Module] } end,
 			[ 
-			  emx_data,
 			  job_housekeep
 			]),
     {ok, {{one_for_all, 3, 1}, ModuleArray}}.

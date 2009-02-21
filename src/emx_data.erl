@@ -62,6 +62,8 @@ init(_) ->
 				Res
 		end
 		end, Nodes),
+    %% Probably also need to look at the local archive and setup some tables (and content) from that
+    %% (But maybe people should be using dets instead?)
     {ok, ConfigHandle}.
 
 populate_from_node(Node, ConfigHandle) ->
@@ -76,9 +78,9 @@ populate_from_node(Node, ConfigHandle) ->
 					"default" -> dontdothis;
 					_ ->  
 						NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
-						util_flogger:logMsg(self(), ?MODULE, debug, "Copying info about ~p", [ TableInfo#emxstoreconfig.typename]),
+						util_flogger:logMsg(self(), ?MODULE, debug, "Copying info about ~p", [ TableInfo#emxstoreconfig.typename]),						
 						util_data:put_data(ConfigHandle, NewTableInfo)
-				end
+					end
 				end, Res),
 			true
 	end.
@@ -208,7 +210,7 @@ handle_call({createLocalTable, TableId}, _From, ConfigHandle) ->
     {reply,  low_create_local_table(TableId, ConfigHandle), ConfigHandle};
     
 handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
-	%% Load the capacity constraints for the given tablename, then run them...
+	%% Load the capacity constraints for the given tablename, then run them...	
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	emx_data_constraints:run_constraints(TableInfo, TableInfo#emxstoreconfig.capacityconstraints),
 	{reply, ok, ConfigHandle};
@@ -219,6 +221,7 @@ handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
 	%% If we do not, and the table has only one host, make a copy and host it ourselves
 	%% If we do not, and the table has more than one host, do nothing
 	%% If we do, and the table has more than two hosts, retire our copy
+		
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	OurNode = node(),
 	HasLocalCopy = lists:any(fun(Node) -> Node == OurNode end, TableInfo#emxstoreconfig.location),
@@ -336,13 +339,33 @@ getTableInfo(TableId, ConfigHandle) ->
 	end.
 
 
+populate_from_archive(TableInfo) ->
+	%% Use util_bfile data to bring in keys to the table, keeping the data in the archive
+	Keys = util_bfile:get_table_keys(TableInfo#emxstoreconfig.typename),
+	NewCount = lists:foldl(fun(Key, Count) ->
+		Record = #emxcontent {
+					displayname = Key,
+					writetime = calendar:local_time(),
+					writeuser = anon,
+					content = { archived },
+					encoding = "application/xml",
+					epoch = Count
+			},
+		util_data:put_data(TableInfo#emxstoreconfig.tableid, Record),
+		Count+1
+		end, 1, Keys),
+	util_flogger:logMsg(self(), ?MODULE, debug, "New epoch after archive copy is ~p", [ NewCount ]),
+	TableInfo#emxstoreconfig { epoch = NewCount }.
+
 low_create_local_table(TableId, ConfigHandle) ->
         util_flogger:logMsg(self(), ?MODULE, debug, "Getting low_create_local_table ~p", [TableId]),
 	[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
 	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = [ node() ] },
 	NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
 	RetTableInfo = NewTableInfo#emxstoreconfig { tableid = NewTableId },
+	%%RealTableInfo = populate_from_archive(RetTableInfo),
 	util_data:put_data(ConfigHandle, RetTableInfo),
+	
 	{ok, PossibleNodes} = application:get_env(nodes),
 	MyNode = node(),
 	lists:foreach(fun(Node) -> 

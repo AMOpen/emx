@@ -56,7 +56,7 @@ put_data(Key, Content, Encoding) ->
     gen_server:call(?GD2, {putData, normaliseKey(Key), Content, Encoding}, infinity).
     
 get_data(Key) ->
-    gen_server:call(?GD2, {getData, normaliseKey(Key)}, 2000).
+    gen_server:call(?GD2, {getData, normaliseKey(Key)}, 30000).
    
 get_prefixes() ->
     gen_server:call(?GD2, {getPrefixes}, infinity).
