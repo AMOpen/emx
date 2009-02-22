@@ -15,10 +15,15 @@
 out(Arg) ->
     Req = Arg#arg.req,
     ReqPath = util_yaws:get_path(Req),
-    DisplayName = string:join(lists:nthtail(2, string:tokens(ReqPath, "/")), "/"),
-    ?LOG(debug, "Get ~p", [ DisplayName]),
+    DisplayName = string:join(lists:nthtail(2,
+					    string:tokens(ReqPath, "/")),
+			      "/"),
+    ?LOG(debug, "Get ~p", [DisplayName]),
     Resp = emx_admin:get_data(DisplayName),
-    case Resp of 
-    	{datainfo, BackRecord} -> util_yaws:make_response(200, BackRecord#emxcontent.encoding, BackRecord#emxcontent.content);
-	nodata -> util_yaws:make_response(200, "<nodata/>")
+    case Resp of
+      {datainfo, BackRecord} ->
+	  util_yaws:make_response(200,
+				  BackRecord#emxcontent.encoding,
+				  BackRecord#emxcontent.content);
+      nodata -> util_yaws:make_response(200, "<nodata/>")
     end.

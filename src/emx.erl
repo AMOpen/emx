@@ -17,9 +17,7 @@
 %% @doc Start the ecloud application
 %% @spec start() -> ok
 
-start() ->
-    application:start(emx).
-
+start() -> application:start(emx).
 
 %% @doc Stop the ecloud application
 %% @spec stop() -> ok

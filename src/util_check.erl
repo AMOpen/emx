@@ -5,11 +5,10 @@
 -include("emx.hrl").
 
 check_message_queue() ->
-    {message_queue_len, Len } = erlang:process_info(self(), message_queue_len),
+    {message_queue_len, Len} = erlang:process_info(self(),
+						   message_queue_len),
     case Len > 100 of
-    	true ->
-    		?LOG(debug, "Message queue length is ~p", [ Len ]);
-	false ->
-		none
+      true ->
+	  ?LOG(debug, "Message queue length is ~p", [Len]);
+      false -> none
     end.
-	

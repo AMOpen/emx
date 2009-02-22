@@ -10,15 +10,12 @@
 -export([format/2, join/1, join/2]).
 
 format(DisplayString, Args) ->
-	lists:flatten(io_lib:format(DisplayString, Args)).
-	
-join(List) ->
-    join(List, ",").
- 
+    lists:flatten(io_lib:format(DisplayString, Args)).
+
+join(List) -> join(List, ",").
+
 join(List, Delim) ->
-    lists:foldl(
-      fun(Elem, []) ->
-        [Elem];
-   (Elem, Acc) ->
-        [Elem, Delim | Acc]
-      end, [], lists:reverse(List)).
+    lists:foldl(fun (Elem, []) -> [Elem];
+		    (Elem, Acc) -> [Elem, Delim | Acc]
+		end,
+		[], lists:reverse(List)).

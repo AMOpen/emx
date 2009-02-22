@@ -32,12 +32,10 @@ start_link([]) ->
 
 init([]) ->
     Args = [],
-    ModuleArray = lists:map(fun(Module) -> {
-    			Module, 
-			{Module, start_link, [Args]},
-			permanent, 10000, worker, [Module] } end,
-			[ 
-			  job_housekeep
-			]),
+    ModuleArray = [init_1(V1, Args)
+		   || V1 <- [job_housekeep]],
     {ok, {{one_for_all, 3, 1}, ModuleArray}}.
 
+init_1(Module, Args) ->
+    {Module, {Module, start_link, [Args]}, permanent, 10000,
+     worker, [Module]}.

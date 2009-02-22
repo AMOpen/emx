@@ -14,7 +14,8 @@
 -export([code_change/4, handle_event/3, handle_info/3,
 	 handle_sync_event/4, terminate/3]).
 
--export([init/1, paused/2, running/2, stopped/2, housekeep/0]).
+-export([housekeep/0, init/1, paused/2, running/2,
+	 stopped/2]).
 
 -include_lib("emx.hrl").
 
@@ -32,8 +33,9 @@ start_link(_Arg) ->
 
 init(_) ->
     process_flag(trap_exit, true),
-    ?LOG(debug, "starting",[]),
-    timer:apply_after(1000, job_housekeep, checkStartup, []),
+    ?LOG(debug, "starting", []),
+    timer:apply_after(1000, job_housekeep, checkStartup,
+		      []),
     {ok, paused, {[], null}}.
 
 checkStartup() ->
@@ -44,7 +46,6 @@ paused(start, {[], Dummy}) ->
     {next_state, stopped, {[], Dummy}, 20000};
 paused(timeout, State) ->
     {next_state, stopped, State, 30000};
-    
 paused(ping, State) ->
     {next_state, stopped, State, 30000}.
 
@@ -54,23 +55,22 @@ stopped(timeout, State) ->
     {next_state, running, State, 120000}.
 
 running(timeout, State) ->
-    ?LOG(debug, "Housekeeping timeout",[]),
+    ?LOG(debug, "Housekeeping timeout", []),
     {next_state, stopped, State, 30000};
-    
 running(finished, State) ->
     {next_state, stopped, State, 30000}.
 
 housekeep() ->
     emx_admin:housekeep(),
-    ?LOG(debug, "Signal finished state",[]),
+    ?LOG(debug, "Signal finished state", []),
     gen_fsm:send_event(?GD2, finished).
 
-handle_info(Info, State, N) -> 
-    ?LOG(debug, "Received info message ~p", [ Info ]),
+handle_info(Info, State, N) ->
+    ?LOG(debug, "Received info message ~p", [Info]),
     {next_state, stopped, State, 30000}.
 
 handle_event(Event, _StateName, _StateData) ->
-    ?LOG(debug, "Received even ~p", [ Event ]),
+    ?LOG(debug, "Received even ~p", [Event]),
     {paused, start, []}.
 
 handle_sync_event(_Event, _StateName, _Stuff,

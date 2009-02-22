@@ -14,40 +14,22 @@
 -export([show_widget/1]).
 
 show_widget(Arg) ->
-	%% Get the id parameter which will be the table list to show the keys for
-	Args = yaws_api:parse_query(Arg),
-	%%io:format("Args are ~p~n", [ Args]),
-	KeyName = proplists:get_value("id", Args),
-	case KeyName of
-		"null" -> Val = "";
-		_ ->   {datainfo, Content}  = emx_admin:get_data(KeyName),
-		       Val = Content#emxcontent.content
-	end,
-	{ehtml,
-		{ table,
-		   [ { id, "tableList"}, {class, "tablesorter"}, {width, "50%"}],
-		      [
-			{thead, [],
-				[ {tr, [], [
-					{th, [], KeyName}
-					]
-				   }
-				 ]
-			},
-			{tbody, [], 
-				[ {tr, [], [
-					{td, [],
-						[
-						{ textarea, [
-							{rows, "25"}, {cols, "80"}], Val}
-						]
-					}
-					]
-				   }
-				 ]
-			}
-		     ]		   
-		}
-	}.
-	
-	
+    %% Get the id parameter which will be the table list to show the keys for
+    Args = yaws_api:parse_query(Arg),
+    %%io:format("Args are ~p~n", [ Args]),
+    KeyName = proplists:get_value("id", Args),
+    case KeyName of
+      "null" -> Val = "";
+      _ ->
+	  {datainfo, Content} = emx_admin:get_data(KeyName),
+	  Val = Content#emxcontent.content
+    end,
+    {ehtml,
+     {table,
+      [{id, "tableList"}, {class, "tablesorter"},
+       {width, "50%"}],
+      [{thead, [], [{tr, [], [{th, [], KeyName}]}]},
+       {tbody, [],
+	[{tr, [],
+	  [{td, [],
+	    [{textarea, [{rows, "25"}, {cols, "80"}], Val}]}]}]}]}}.

@@ -18,17 +18,15 @@
 %% Main application entry point - start the OTP cloud supervisor.
 
 start_phase(Phase, Mode, Args) ->
-    ?LOG(debug,
-			"Running start phase ~p, ~p, ~p", [Phase, Mode, Args]),
+    ?LOG(debug, "Running start phase ~p, ~p, ~p",
+	 [Phase, Mode, Args]),
     start_inner_phase(Phase, Mode, Args).
-    
-start_inner_phase(jobs, _Mode, _Args) ->
-  ok.
-  
+
+start_inner_phase(jobs, _Mode, _Args) -> ok.
+
 start(_Type, StartArgs) ->
     Ret = emx_sup:start_link(StartArgs),
-    ?LOG(normal,
-			"EMX Initial Start",[]),
+    ?LOG(normal, "EMX Initial Start", []),
     Ret.
 
 stop(_State) -> ok.

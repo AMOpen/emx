@@ -4,7 +4,8 @@
 
 %% Run the tests for all of the modules that are compiled
 runTest() ->
-    Modules = [getModuleName(FileName) || FileName <- filelib:wildcard("*.beam")],
+    Modules = [getModuleName(FileName)
+	       || FileName <- filelib:wildcard("*.beam")],
     eunit:test(Modules).
 
 getModuleName(FileName) ->

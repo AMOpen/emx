@@ -11,7 +11,6 @@
 
 -include_lib("emx.hrl").
 
-
 get_path(Req) ->
     {_, Path} = Req#http_request.path, Path.
 
@@ -32,4 +31,3 @@ make_header(Type) ->
 make_all_response(Status, Headers, Message, Type) ->
     [{status, Status}, {allheaders, Headers},
      {Type, Message}].
-
