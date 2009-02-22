@@ -441,9 +441,9 @@ get_location_for_new_table(TableId, ConfigHandle,
 			   ExcludeNodes) ->
     %% Now get the nodes that could host this
     {ok, Nodes} = application:get_env(nodes),
-    RealList = [V1
-		|| V1 <- Nodes,
-		   get_location_for_new_table_1(V1, ExcludeNodes)],
+    RealList = [Node
+		|| Node <- Nodes,
+		   is_excluded(Node, ExcludeNodes)],
     %% Now pick one (at random initially)
     NodeToHost = util_randomext:pickCount(RealList, 1),
     MyNode = node(),
@@ -464,7 +464,7 @@ get_location_for_new_table(TableId, ConfigHandle,
 	  end
     end.
 
-get_location_for_new_table_1(Node, ExcludeNodes) ->
+is_excluded(Node, ExcludeNodes) ->
     lists:all(fun (Exclude) -> Exclude /= Node end,
 	      ExcludeNodes).
 

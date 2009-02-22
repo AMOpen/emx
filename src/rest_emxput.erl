@@ -33,14 +33,14 @@ handle_tokenRequest(_A, _B, _C) ->
 convertData(RequestArray) ->
     %% Request Array will be an array of { key, value} tuples, key will be a string, we want it to be an atom
     %% the value will also be a string, we want to attempt to convert that depending on the prefix of the atom
-    [convertData_1(V1) || V1 <- RequestArray].
+    [convertElement(Element) || Element <- RequestArray].
 
-convertData_1({"xmlencode", Value}) ->
+convertElement({"xmlencode", Value}) ->
     String =
 	base64:mime_decode_to_string(replaceSpace(Value)),
     %%io:format("Decode is ~p~n", [ String ]),
     {xml, String};
-convertData_1({Key, Value}) ->
+convertElement({Key, Value}) ->
     {list_to_atom(Key), Value}.
 
 replaceSpace(S) -> replaceSpace(S, []).

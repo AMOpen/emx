@@ -32,10 +32,10 @@ start_link([]) ->
 
 init([]) ->
     Args = [],
-    ModuleArray = [init_1(V1, Args)
-		   || V1 <- [emx_admin, emx_data, emx_restserver]],
+    ModuleArray = [get_info(Module, Args)
+		   || Module <- [emx_admin, emx_data, emx_restserver]],
     {ok, {{one_for_one, 3, 1}, ModuleArray}}.
 
-init_1(Module, Args) ->
+get_info(Module, Args) ->
     {Module, {Module, start_link, [Args]}, permanent, 10000,
      worker, [Module]}.
