@@ -9,9 +9,7 @@
     		$('div#tables').load('/widget/tableList.yaws');
 		$('div#tables').show('slow');
 		$('a[rel*=tablelink]').click(function(event) {
-			<!-- $('div#contents').load('/emx/getkeys/official/trade.aladdin'); -->
 			event.preventDefault();
-			<!-- $('div#contents').load('/admin/getkeys.yaws?table=official_fidap.trade.cds'); -->
 			$('div#contents').load($(this).attr(href));
 			});
 		});
@@ -30,7 +28,7 @@
 			var doSetTimeout = function() {
 				pullUpdate();
 			}
-			timer = setTimeout(doSetTimeout, 10000);
+			timer = setTimeout(doSetTimeout, 20000);
 		}
 	</script>
 </div>
