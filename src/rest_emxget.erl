@@ -6,7 +6,7 @@
 
 -include("../../yaws-1.77/include/yaws_api.hrl").
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 -include_lib("xmerl/include/xmerl.hrl").
 
@@ -16,7 +16,7 @@ out(Arg) ->
     Req = Arg#arg.req,
     ReqPath = util_yaws:get_path(Req),
     DisplayName = string:join(lists:nthtail(2, string:tokens(ReqPath, "/")), "/"),
-    util_flogger:logMsg(self(), ?MODULE, debug, "Get ~p", [ DisplayName]),
+    ?LOG(debug, "Get ~p", [ DisplayName]),
     Resp = emx_admin:get_data(DisplayName),
     case Resp of 
     	{datainfo, BackRecord} -> util_yaws:make_response(200, BackRecord#emxcontent.encoding, BackRecord#emxcontent.content);

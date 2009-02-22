@@ -2,7 +2,7 @@
 
 -export([test/0]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 test() ->
 	application:start(emx),
@@ -13,7 +13,7 @@ test() ->
 	
 run_for(Prefix) ->
 	lists:foreach(fun(Id) ->
-		emx_admin:put_data(util_string:format("~s/~p", [ Prefix, Id]), util_string:format("<data>~p</data>", [Id]))
+		emx_http:put_data(util_string:format("~s/~p", [ Prefix, Id]), util_string:format("<data>~p</data>", [Id]))
 		end, lists:seq(0, 100)).
 		
 	

@@ -5,6 +5,7 @@
 -behaviour(gen_server).
 
 -include("../../yaws-1.77/include/yaws.hrl").
+-include("emx.hrl").
 
 -export([handle_call/3, handle_cast/2, handle_info/2,
 	 init/1, start_link/1]).
@@ -12,7 +13,7 @@
 -export([code_change/3, set_conf/1, terminate/2]).
 
 start_link(Args) ->
-    util_flogger:logMsg(self(), ?MODULE, debug,
+    ?LOG(debug,
 			"~p starting with ~p", [?MODULE, Args]),
     gen_server:start_link({local, ?MODULE}, ?MODULE, Args,
 			  []).
@@ -25,8 +26,8 @@ getAppArgs(List) ->
 init(_Args) ->
     [ Host, Port, LogDir] = getAppArgs([webhost, webport, weblogdir]),
     
-    util_flogger:logMsg(self(), ?MODULE, debug,
-			"Init emx_restserver"),
+    ?LOG(debug,
+			"Init emx_restserver",[]),
     process_flag(trap_exit, true),
     case application:start(yaws) of
       ok -> set_conf([Host, Port, LogDir]);
@@ -34,8 +35,8 @@ init(_Args) ->
     end.
 
 set_conf([Host, Port, LogDir]) ->
-    util_flogger:logMsg(self(), ?MODULE, debug,
-			"Setting configuration for yaws"),
+    ?LOG(debug,
+			"Setting configuration for yaws",[]),
     GC = #gconf{trace = false,
 		logdir = LogDir,
 		yaws = "EMX 1.0",

@@ -4,7 +4,7 @@
 
 -include("../../yaws-1.77/include/yaws.hrl").
 -include("../../yaws-1.77/include/yaws_api.hrl").
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 out(Arg) ->

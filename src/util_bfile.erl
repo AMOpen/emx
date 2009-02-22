@@ -1,6 +1,7 @@
 -module(util_bfile).
 
 -include_lib("kernel/include/file.hrl").
+-include("emx.hrl").
 
 %% A simple module to persist large content using the filesystem
 
@@ -19,7 +20,7 @@ get_table_keys(TablePrefix) ->
 collectIn(Folder, Prefix) ->
 	%% Collect all files at this folder, array returned is Folder + FileName
 	%% Then go through each sub folder. Append on the list formed from collectIn(Folder + SubFolder, Prefix + SubFolder),
-	util_flogger:logMsg(self(), ?MODULE, debug, "Folder is ~p", [ Folder ]),
+	?LOG(debug, "Folder is ~p", [ Folder ]),
 	Res = file:list_dir(list_to_atom(Folder)),
 	case Res of
 		{ error, _ } -> [];

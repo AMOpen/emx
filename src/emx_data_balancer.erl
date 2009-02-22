@@ -10,7 +10,7 @@
 
 -export([processBalanceNode/4]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 %% If a table is not locally available and there are no owners, remove the configuration
 
@@ -20,11 +20,11 @@ processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count == 0 ->
 %% If a table is not locally available and there are less than two nodes, attempt to bridge it over
 processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->	
 	[TestNode | _ ] = TableInfo#emxstoreconfig.location,
-	util_flogger:logMsg(self(), ?MODULE, debug, "Asking for getkeys from node ~p", [ TestNode ]),
+	?LOG(debug, "Asking for getkeys from node ~p", [ TestNode ]),
 	DataList = rpc:call(TestNode, emx_data, get_datakeys, [ TableInfo#emxstoreconfig.typename, 0]),
 	case DataList of
 		{badrpc, _ } -> 
-			util_flogger:logMsg(self(), ?MODULE, debug, "Could not obtain information from ~p", [TestNode]);
+			?LOG(debug, "Could not obtain information from ~p", [TestNode]);
 		{datainfo, { _MaxEpoch, [] }} ->
 			nothing;
 		{datainfo, { MaxEpoch, List}} ->
@@ -32,19 +32,19 @@ processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
 			NodeList = TableInfo#emxstoreconfig.location ++ [ node() ],
 			UpdatedTableInfo = TableInfo#emxstoreconfig { location = NodeList, tableid = NewTableId },		
 			lists:foreach(fun(Record) -> 
-				util_flogger:logMsg(self(), ?MODULE, debug, "Copying ~p with ~p records", [ Record#emxcontent.displayname, length(List) ]),
+				?LOG(debug, "Copying ~p with ~p records", [ Record#emxcontent.displayname, length(List) ]),
 				util_data:put_data(NewTableId, Record)
 			end, List),
 			%% Run the constraints so we don't keep data that is out of date
 			emx_data_constraints:run_constraints(UpdatedTableInfo, UpdatedTableInfo#emxstoreconfig.capacityconstraints),
-			util_flogger:logMsg(self(), ?MODULE, debug, "New epoch is ~p", [ MaxEpoch ]),
+			?LOG(debug, "New epoch is ~p", [ MaxEpoch ]),
 			util_data:put_data(ConfigHandle, UpdatedTableInfo#emxstoreconfig{ epoch = MaxEpoch }),
 			%% Now inform all of the other nodes that have this table that we have it too
 			{ok, Nodes} = application:get_env(nodes),
 			MyNode = node(),
 			lists:foreach(
 				fun(Node) ->
-					util_flogger:logMsg(self(), ?MODULE, debug, "Informing ~p of the new node", [ Node]),
+					?LOG(debug, "Informing ~p of the new node", [ Node]),
 					case Node of
 						MyNode -> nothing;
 						_ -> rpc:call(Node, emx_data, update_table_info, [ TableInfo#emxstoreconfig.typename, nodeup, MyNode]) 
@@ -54,7 +54,7 @@ processBalanceNode(ConfigHandle, TableInfo, false, Count) when Count < 2 ->
 	end;
 	
 processBalanceNode(_ConfigHandle, TableInfo, true, Count) when Count > 2 ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Should remove balance ~p", [ TableInfo#emxstoreconfig.typename]);
+	?LOG(debug, "Should remove balance ~p", [ TableInfo#emxstoreconfig.typename]);
 	
 processBalanceNode(ConfigHandle, TableInfo, true, _) ->
 	%% Check number of records. If it is over a certain size, convert to a disk table if it isn't already	
@@ -62,11 +62,11 @@ processBalanceNode(ConfigHandle, TableInfo, true, _) ->
 	Type = util_data:get_type(TableInfo#emxstoreconfig.tableid),
 	case { Size > 500, Type} of
 		{ true, ets} ->
-			util_flogger:logMsg(self(), ?MODULE, debug, "Converting memory table to disk table for ~p", [ TableInfo#emxstoreconfig.typename]),
+			?LOG(debug, "Converting memory table to disk table for ~p", [ TableInfo#emxstoreconfig.typename]),
 			NewTableInfo = TableInfo#emxstoreconfig { tableid = util_data:convert(TableInfo#emxstoreconfig.tableid, TableInfo#emxstoreconfig.typename) },
 			util_data:put_data(ConfigHandle, NewTableInfo);			
 		{ false, dets} ->
-			util_flogger:logMsg(self(), ?MODULE, debug, "Converting disk table to memory table for ~p", [ TableInfo#emxstoreconfig.typename]),
+			?LOG(debug, "Converting disk table to memory table for ~p", [ TableInfo#emxstoreconfig.typename]),
 			NewTableInfo = TableInfo#emxstoreconfig { tableid = util_data:convert(TableInfo#emxstoreconfig.tableid, TableInfo#emxstoreconfig.typename) },
 			util_data:put_data(ConfigHandle, NewTableInfo);			
 		_ -> nothing

@@ -8,7 +8,7 @@
 %% tableid is the tableid of the table ON THIS NODE or the tuple atom { remote }
 -record(emxstoreconfig, { typename, storagetype, storageoptions, tableid, capacityconstraints, epoch, location }).
 
-
+-define(LOG(Level,Msg,Params), util_flogger:logMsg(self(), ?MODULE, Level, Msg, Params)).
 
 
 

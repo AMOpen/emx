@@ -9,19 +9,19 @@
 
 -export([run_constraints/2, run_constraint/3]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 current_time() ->
 	calendar:datetime_to_gregorian_seconds(calendar:local_time()).
 	
 should_bail(StartTime) ->
 	%% Current time
-	%%util_flogger:logMsg(self(), ?MODULE, debug, "Should bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
+	%%?LOG(debug, "Should bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
 	(StartTime + 2 - current_time()) < 0.
 	
 should_not_bail(StartTime) ->
 	%% Current time
-	%%util_flogger:logMsg(self(), ?MODULE, debug, "Should not bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
+	%%?LOG(debug, "Should not bail check, StartTime ~p, CurrentTime ~p", [ StartTime, current_time()]),
 	(StartTime + 2 - current_time()) > 0.		
 	
 %% The following functions are to handle the removal of data from a cache to keep it within certain constraints
@@ -63,7 +63,7 @@ run_constraint(TableConfig, { records, MaxCount }, StartTime) ->
 			%% need to remove
 			SortedList = get_all_sorted(TableConfig),
 			lists:takewhile(fun(Record) ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to keep number of records in limit", [ Record#emxcontent.displayname]),
+				?LOG(debug, "Removing ~p to keep number of records in limit", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
 				util_zip:cleanup_record(Record),
 				{ NewRecordCount, _ , _} = util_data:get_size(TableConfig#emxstoreconfig.tableid),
@@ -85,7 +85,7 @@ run_constraint(TableConfig, { age, MaxAge }, StartTime) ->
 		WriteTime = calendar:datetime_to_gregorian_seconds(Record#emxcontent.writetime),
 		case WriteTime < TestTime of
 			true ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p as it is old", [ Record#emxcontent.displayname]),
+				?LOG(debug, "Removing ~p as it is old", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
 				util_zip:cleanup_record(Record);
 			false ->
@@ -107,7 +107,7 @@ run_constraint(TableConfig, { size, MaxSize }, StartTime) ->
 			%% need to remove
 			SortedList = get_all_sorted(TableConfig),
 			lists:takewhile(fun(Record) ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "Removing ~p to free up memory", [ Record#emxcontent.displayname]),
+				?LOG(debug, "Removing ~p to free up memory", [ Record#emxcontent.displayname]),
 				util_data:delete_data(TableConfig#emxstoreconfig.tableid, Record#emxcontent.displayname),
 				util_zip:cleanup_record(Record),
 				%% Run garbage collect after deletion or the get_size method below will not return the correct
@@ -132,7 +132,7 @@ run_constraint(TableConfig, { archive, ArchiveAge}, StartTime) ->
 				case NewRecord of 
 					Record -> nothing;
 					_ ->
-						util_flogger:logMsg(self(), ?MODULE, debug, "Archived ~p as it is old", [ Record#emxcontent.displayname]),
+						?LOG(debug, "Archived ~p as it is old", [ Record#emxcontent.displayname]),
 						util_data:put_data(TableConfig#emxstoreconfig.tableid, NewRecord)
 				end;
 			_ ->

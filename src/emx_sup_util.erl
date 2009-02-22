@@ -12,7 +12,7 @@
 -export([init/1, start/0, start_in_shell_for_testing/0,
 	 start_link/1]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 -include_lib("stdlib/include/qlc.hrl").
 

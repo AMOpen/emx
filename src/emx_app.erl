@@ -13,10 +13,12 @@
 
 -export([start/2, start_phase/3, stop/1]).
 
+-include("emx.hrl").
+
 %% Main application entry point - start the OTP cloud supervisor.
 
 start_phase(Phase, Mode, Args) ->
-    util_flogger:logMsg(self(), ?MODULE, debug,
+    ?LOG(debug,
 			"Running start phase ~p, ~p, ~p", [Phase, Mode, Args]),
     start_inner_phase(Phase, Mode, Args).
     
@@ -25,8 +27,8 @@ start_inner_phase(jobs, _Mode, _Args) ->
   
 start(_Type, StartArgs) ->
     Ret = emx_sup:start_link(StartArgs),
-    util_flogger:logMsg(self(), ?MODULE, normal,
-			"EMX Initial Start"),
+    ?LOG(normal,
+			"EMX Initial Start",[]),
     Ret.
 
 stop(_State) -> ok.

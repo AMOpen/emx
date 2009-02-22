@@ -7,7 +7,7 @@
 
 -export([compress_record/1, decompress_record/1, archive_record/1, cleanup_record/1]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 compress_record(Data) when is_record(Data, emxcontent) ->
 	case Data#emxcontent.content of
@@ -32,7 +32,7 @@ archive_record(Data) when is_record(Data, emxcontent) ->
 	%% Make sure data is compressed
 	case Data#emxcontent.content of
 		{ compressed, Value } -> 
-			util_flogger:logMsg(self(), ?MODULE, debug, "Writing file out"),
+			?LOG(debug, "Writing file out",[]),
 			util_bfile:save_content(Data#emxcontent.displayname, Value),
 			Data#emxcontent { content = { archived }};
 		{ archived } ->

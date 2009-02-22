@@ -15,7 +15,7 @@
 -export([put_data/3, get_data/2, get_datakeys/2, run_capacity/1, get_tables/0, update_constraints/2, create_local_table/1,
 	add_remote_table/1, update_table_info/3, run_balancer/1]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 -include_lib("stdlib/include/qlc.hrl").
 
@@ -34,9 +34,9 @@ start_link(_Arg) ->
 
 init(_) ->
     process_flag(trap_exit, true),
-    util_flogger:logMsg(self(), ?MODULE, debug, "Starting emx_data"),
+    ?LOG(debug, "Starting emx_data",[]),
     {ok, {StorageType, Config}} = application:get_env(emxconfig),
-    util_flogger:logMsg(self(), ?MODULE, debug, "Storage type ~p, Config ~p", [ StorageType, Config]),
+    ?LOG(debug, "Storage type ~p, Config ~p", [ StorageType, Config]),
     {ok, Setup} = application:get_env(setupstore),
     {ok, DefaultStore} = application:get_env(defaultstore),
 
@@ -78,7 +78,7 @@ populate_from_node(Node, ConfigHandle) ->
 					"default" -> dontdothis;
 					_ ->  
 						NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
-						util_flogger:logMsg(self(), ?MODULE, debug, "Copying info about ~p", [ TableInfo#emxstoreconfig.typename]),						
+						?LOG(debug, "Copying info about ~p", [ TableInfo#emxstoreconfig.typename]),						
 						util_data:put_data(ConfigHandle, NewTableInfo)
 					end
 				end, Res),
@@ -130,7 +130,7 @@ update_constraints(TableId, Constraints) ->
     gen_server:call(?GD2, { updateConstraints, TableId, Constraints}, infinity).
     
 create_local_table(TableId) ->
-    util_flogger:logMsg(self(), ?MODULE, debug, "Create local table for ~p", [ TableId]),
+    ?LOG(debug, "Create local table for ~p", [ TableId]),
     gen_server:call(?GD2, { createLocalTable, TableId}, infinity).
     
 run_capacity(TableId) when is_atom(TableId) ->
@@ -147,6 +147,7 @@ run_balancer(TableId) when is_list(TableId) ->
     
 %% 
 handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
 %% Resolve tableid into an access token for util_data
 %% Access tokens are actually { ets or dets, tableatom}
     %% Use ConfigHandle to get at the config table for the TableId (which is actually a string that we should find in the ConfigHandle).
@@ -173,6 +174,7 @@ handle_call({putData, TableId, Data}, _From, ConfigHandle) ->
     {reply, {datainfo, ok}, ConfigHandle};
 
 handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
     NewTableInfo = getTableInfo(TableId, ConfigHandle),
     UpdatedInfo = NewTableInfo#emxstoreconfig{ capacityconstraints = Constraints },
     util_data:put_data(ConfigHandle, UpdatedInfo),
@@ -180,6 +182,7 @@ handle_call({updateConstraints, TableId, Constraints}, _From, ConfigHandle) ->
 
 	
 handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
     TableInfo = getTableInfo(TableId, ConfigHandle),
     MyNode = node(),
     case lists:any(fun(Node) -> Node == MyNode end, TableInfo#emxstoreconfig.location) of
@@ -192,6 +195,7 @@ handle_call({getData, TableId, Key}, _From, ConfigHandle) ->
     {reply, {datainfo, RealRes}, ConfigHandle};
     
 handle_call({getDataKeys, TableId, EpochNumber}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
     TableInfo = getTableInfo(TableId, ConfigHandle),
     MyNode = node(),
     case lists:any(fun(Node) -> Node == MyNode end, TableInfo#emxstoreconfig.location) of
@@ -203,13 +207,16 @@ handle_call({getDataKeys, TableId, EpochNumber}, _From, ConfigHandle) ->
     {reply, {datainfo, {MaxEpoch, Keys}}, ConfigHandle};
     
 handle_call({getTables}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
     Tables = util_data:foldl(fun(Record, AccIn) -> AccIn ++ [ Record ] end, [], ConfigHandle),
     {reply, Tables, ConfigHandle};
     
 handle_call({createLocalTable, TableId}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
     {reply,  low_create_local_table(TableId, ConfigHandle), ConfigHandle};
     
 handle_call({runCapacity, TableId}, _From, ConfigHandle) ->
+    util_check:check_message_queue(),
 	%% Load the capacity constraints for the given tablename, then run them...	
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	emx_data_constraints:run_constraints(TableInfo, TableInfo#emxstoreconfig.capacityconstraints),
@@ -221,7 +228,7 @@ handle_call({runBalancer, TableId}, _From, ConfigHandle) ->
 	%% If we do not, and the table has only one host, make a copy and host it ourselves
 	%% If we do not, and the table has more than one host, do nothing
 	%% If we do, and the table has more than two hosts, retire our copy
-		
+	    util_check:check_message_queue(),
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	OurNode = node(),
 	HasLocalCopy = lists:any(fun(Node) -> Node == OurNode end, TableInfo#emxstoreconfig.location),
@@ -248,17 +255,20 @@ collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
 
 	
 handle_cast({addRemoteTable, TableInfo}, ConfigHandle) ->
+    util_check:check_message_queue(),
 	NewTableInfo = TableInfo#emxstoreconfig { tableid = remote },
 	util_data:put_data(ConfigHandle, NewTableInfo),
 	lists:foreach(fun(Node) -> erlang:monitor_node(Node, true) end, TableInfo#emxstoreconfig.location),
 	{noreply, ConfigHandle};
 
 handle_cast({updateTableInfo, "default", nodedown, Node }, ConfigHandle) ->
+    util_check:check_message_queue(),
 	{noreply, ConfigHandle};
 
 handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 	%% The node passed is no longer hosting this table, so remove it from the list
 	%% Only remove it if we know about it
+	    util_check:check_message_queue(),
 	case tableExists(TableId, ConfigHandle) of
 		true ->
 			TableInfo = getTableInfo(TableId, ConfigHandle),
@@ -266,7 +276,7 @@ handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 				lists:filter(fun(NodeInfo) -> NodeInfo /= Node end, TableInfo#emxstoreconfig.location) },
 				case NewTableInfo#emxstoreconfig.location of
 					[] ->
-						util_flogger:logMsg(self(), ?MODULE, debug, "Would clean up obsolete table"),
+						?LOG(debug, "Would clean up obsolete table",[]),
 						util_data:put_data(ConfigHandle, NewTableInfo);
 						%%util_data:delete_data(ConfigHandle, NewTableInfo#emxstoreconfig.typename),
 						%%util_data:close_handle(NewTableInfo#emxstoreconfig.tableid);
@@ -279,7 +289,8 @@ handle_cast({updateTableInfo, TableId, nodedown, Node }, ConfigHandle) ->
 	{noreply, ConfigHandle};
 
 handle_cast({updateTableInfo, TableId, nodeup, Node }, ConfigHandle) ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Processing node up for ~p", [Node]),
+    util_check:check_message_queue(),
+	?LOG(debug, "Processing node up for ~p", [Node]),
 	TableInfo = getTableInfo(TableId, ConfigHandle),
 	NewTableInfo = TableInfo#emxstoreconfig { location = TableInfo#emxstoreconfig.location ++ [ Node ] },
 	util_data:put_data(ConfigHandle, NewTableInfo),
@@ -290,6 +301,7 @@ handle_cast({updateTableInfo, TableId, nodeup, Node }, ConfigHandle) ->
 
 	
 handle_cast({putData, TableId, Data}, ConfigHandle) ->
+    util_check:check_message_queue(),
     NewTableInfo = getTableInfo(TableId, ConfigHandle),
     MyNode = node(),
     case lists:any(fun(Node) -> Node == MyNode end, NewTableInfo#emxstoreconfig.location) of
@@ -305,18 +317,19 @@ handle_cast({putData, TableId, Data}, ConfigHandle) ->
     {noreply, ConfigHandle};
     
 handle_cast(Msg, N) -> 
-	util_flogger:logMsg(self(), ?MODULE, debug, "Received cast ~p", [ Msg ]),
+	?LOG(debug, "Received cast ~p", [ Msg ]),
 	{noreply, N}.
 
 
 handle_info({nodedown, Node}, ConfigHandle) ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Node ~p is down", [ Node]),
+    util_check:check_message_queue(),
+	?LOG(debug, "Node ~p is down", [ Node]),
 	%% Remove node from each table that has it
 	util_data:foldl(fun(TableInfo, AccIn) -> emx_data:update_table_info(TableInfo#emxstoreconfig.typename, nodedown, Node), AccIn end, [], ConfigHandle), 
 	{noreply, ConfigHandle};
 	
 handle_info(Info, N) -> 
-	util_flogger:logMsg(self(), ?MODULE, debug, "Received info ~p", [ Info ]),
+	?LOG(debug, "Received info ~p", [ Info ]),
 	{noreply, N}.
 
 tableExists(TableId, ConfigHandle) ->
@@ -354,11 +367,11 @@ populate_from_archive(TableInfo) ->
 		util_data:put_data(TableInfo#emxstoreconfig.tableid, Record),
 		Count+1
 		end, 1, Keys),
-	util_flogger:logMsg(self(), ?MODULE, debug, "New epoch after archive copy is ~p", [ NewCount ]),
+	?LOG(debug, "New epoch after archive copy is ~p", [ NewCount ]),
 	TableInfo#emxstoreconfig { epoch = NewCount }.
 
 low_create_local_table(TableId, ConfigHandle) ->
-        util_flogger:logMsg(self(), ?MODULE, debug, "Getting low_create_local_table ~p", [TableId]),
+        ?LOG(debug, "Getting low_create_local_table ~p", [TableId]),
 	[ DefaultTableInfo | _ ] = util_data:get_data(ConfigHandle, "default"),
 	NewTableInfo = DefaultTableInfo#emxstoreconfig{ typename = TableId, epoch=0, location = [ node() ] },
 	NewTableId = util_data:get_handle(DefaultTableInfo#emxstoreconfig.storagetype, TableId, DefaultTableInfo#emxstoreconfig.storageoptions),
@@ -408,11 +421,11 @@ get_remote_data([], Params) ->
 	#emxcontent{ };
 	
 get_remote_data([Node | T], Params) ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Trying ~p", [Node]),
+	?LOG(debug, "Trying ~p", [Node]),
 	Res = rpc:call(Node, emx_data, get_data, Params),
 	case Res of
 		{badrpc, _ } -> 
-				util_flogger:logMsg(self(), ?MODULE, debug, "failed, trying next"),
+				?LOG(debug, "failed, trying next",[]),
 				get_remote_data(T, Params);
 		{datainfo, Resp } -> Resp
 	end.
@@ -420,11 +433,11 @@ get_remote_data([Node | T], Params) ->
 get_remote_keys([], Params) ->
 	{ 0, [] };
 get_remote_keys([Node | T], Params) ->
-	util_flogger:logMsg(self(), ?MODULE, debug, "Trying ~p", [Node]),
+	?LOG(debug, "Trying ~p", [Node]),
 	Res = rpc:call(Node, emx_data, get_datakeys, Params),
 	case Res of 
 		{badrpc, _ } ->
-				util_flogger:logMsg(self(), ?MODULE, debug, "failed, trying next"),
+				?LOG(debug, "failed, trying next",[]),
 				get_remote_keys(T, Params);
 		{datainfo, Resp} -> Resp
 	end.

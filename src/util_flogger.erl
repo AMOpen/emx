@@ -22,6 +22,7 @@
 -define(GD2, ?MODULE).
 
 -include_lib("kernel/include/file.hrl").
+-include("emx.hrl").
 
 start_link(_Arg) ->
     gen_server:start_link(?GD1, ?MODULE, [], []).
@@ -31,16 +32,16 @@ init(_) ->
     {ok, FilePattern} = application:get_env(logdir),
     {ok, LogSize} = application:get_env(logsize),
     {ok, LogTags} = application:get_env(logtags),
-    util_flogger:logMsg(self(), ?MODULE, debug,
+    ?LOG(debug,
 			"File pattern is ~p", [FilePattern]),
     FileName = util_string:format(atom_to_list(FilePattern),
 					   [node()]),
-    util_flogger:logMsg(self(), ?MODULE, debug,
+    ?LOG(debug,
 			"~p starting", [?MODULE]),
     {ok, {{FileName, FileName ++ ".log", LogSize, LogTags}, true}}.
 
 terminate(_Reason, _N) ->
-    util_flogger:logMsg(self(), ?MODULE, debug,
+    ?LOG(debug,
 			"~p stopping", [?MODULE]),
     ok.
 

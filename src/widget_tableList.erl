@@ -9,7 +9,7 @@
 
 -include("../../yaws-1.77/include/yaws_api.hrl").
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 -include_lib("xmerl/include/xmerl.hrl").
 

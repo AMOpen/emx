@@ -16,7 +16,7 @@
 
 -export([init/1, paused/2, running/2, stopped/2, housekeep/0]).
 
--include_lib("records.hrl").
+-include_lib("emx.hrl").
 
 -include_lib("stdlib/include/qlc.hrl").
 
@@ -32,7 +32,7 @@ start_link(_Arg) ->
 
 init(_) ->
     process_flag(trap_exit, true),
-    util_flogger:logMsg(self(), ?MODULE, debug, "starting"),
+    ?LOG(debug, "starting",[]),
     timer:apply_after(1000, job_housekeep, checkStartup, []),
     {ok, paused, {[], null}}.
 
@@ -54,7 +54,7 @@ stopped(timeout, State) ->
     {next_state, running, State, 120000}.
 
 running(timeout, State) ->
-    util_flogger:logMsg(self(), ?MODULE, debug, "Housekeeping timeout"),
+    ?LOG(debug, "Housekeeping timeout",[]),
     {next_state, stopped, State, 30000};
     
 running(finished, State) ->
@@ -62,15 +62,15 @@ running(finished, State) ->
 
 housekeep() ->
     emx_admin:housekeep(),
-    util_flogger:logMsg(self(), ?MODULE, debug, "Signal finished state"),
+    ?LOG(debug, "Signal finished state",[]),
     gen_fsm:send_event(?GD2, finished).
 
 handle_info(Info, State, N) -> 
-    util_flogger:logMsg(self(), ?MODULE, debug, "Received info message ~p", [ Info ]),
+    ?LOG(debug, "Received info message ~p", [ Info ]),
     {next_state, stopped, State, 30000}.
 
 handle_event(Event, _StateName, _StateData) ->
-    util_flogger:logMsg(self(), ?MODULE, debug, "Received even ~p", [ Event ]),
+    ?LOG(debug, "Received even ~p", [ Event ]),
     {paused, start, []}.
 
 handle_sync_event(_Event, _StateName, _Stuff,
