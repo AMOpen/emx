@@ -145,7 +145,7 @@ update_constraints(TableId, Constraints) ->
 create_local_table(TableId) ->
     ?LOG(debug, "Create local table for ~p", [TableId]),
     gen_server:call(?GD2, {createLocalTable, TableId},
-		    infinity).
+		    5000).
 
 run_capacity(TableId) when is_atom(TableId) ->
     gen_server:call(?GD2, {runCapacity, TableId}, infinity);
@@ -186,7 +186,11 @@ handle_call({putData, TableId, Data}, _From,
 				%% The final atom remote here will initiate a different path of execution on the remote server,
 				%% basically being a cast instead of a call, and without the fan out to other nodes.
 				Res = rpc:call(Node, emx_data, put_data,
-					       [TableId, Data, remote])
+					       [TableId, Data, remote]),
+				case Res of
+					{ error, Res } -> ?LOG(debug, "Failed to update remote node with error ~p", [ Res ]);
+					_ -> nothing
+				end
 			  end
 		  end,
 		  NewTableInfo#emxstoreconfig.location),
@@ -212,7 +216,7 @@ handle_call({getData, TableId, Key}, _From,
 	  Res =
 	      util_data:get_data(TableInfo#emxstoreconfig.tableid,
 				 Key),
-	  RealRes = [handle_call_1(V1) || V1 <- Res];
+	  RealRes = [decompress(Record) || Record <- Res];
       false ->
 	  RealRes =
 	      get_remote_data(TableInfo#emxstoreconfig.location,
@@ -275,7 +279,7 @@ handle_call({runBalancer, TableId}, _From,
 					 TableInfo, HasLocalCopy, Count),
     {reply, ok, ConfigHandle}.
 
-handle_call_1(Record) ->
+decompress(Record) ->
     util_zip:decompress_record(Record).
 
 collectKeys(Record, {MaxEpoch, TestEpoch, Keys}) ->
@@ -305,6 +309,7 @@ handle_cast({updateTableInfo, "default", nodedown,
 	     Node},
 	    ConfigHandle) ->
     util_check:check_message_queue(),
+    ?LOG(debug, "Node down ~p", [ Node ]),
     {noreply, ConfigHandle};
 handle_cast({updateTableInfo, TableId, nodedown, Node},
 	    ConfigHandle) ->
@@ -356,8 +361,7 @@ handle_cast({putData, TableId, Data}, ConfigHandle) ->
 	  UpdatedEpoch = NewTableInfo#emxstoreconfig{epoch =
 							 NewTableInfo#emxstoreconfig.epoch
 							   + 1},
-	  Res =
-	      util_data:put_data(NewTableInfo#emxstoreconfig.tableid,
+	  util_data:put_data(NewTableInfo#emxstoreconfig.tableid,
 				 CompressedData#emxcontent{epoch =
 							       UpdatedEpoch#emxstoreconfig.epoch}),
 	  util_data:put_data(ConfigHandle, UpdatedEpoch);
@@ -443,13 +447,15 @@ get_location_for_new_table(TableId, ConfigHandle,
     {ok, Nodes} = application:get_env(nodes),
     RealList = [Node
 		|| Node <- Nodes,
-		   is_excluded(Node, ExcludeNodes)],
-    %% Now pick one (at random initially)
+		   is_not_excluded(Node, ExcludeNodes)],
+    %% Now pick one (at random initially) - this will always eventually end up at the local node if
+    %% none are online.
     NodeToHost = util_randomext:pickCount(RealList, 1),
     MyNode = node(),
     case NodeToHost of
       MyNode -> low_create_local_table(TableId, ConfigHandle);
       Node ->
+          %% Could this caused a deadlock if the other node is in the same point as us?
 	  Resp = rpc:call(Node, emx_data, create_local_table,
 			  [TableId]),
 	  case Resp of
@@ -464,11 +470,12 @@ get_location_for_new_table(TableId, ConfigHandle,
 	  end
     end.
 
-is_excluded(Node, ExcludeNodes) ->
+%% Return true if the given Node is not in the list of Excluded Nodes
+is_not_excluded(Node, ExcludeNodes) ->
     lists:all(fun (Exclude) -> Exclude /= Node end,
 	      ExcludeNodes).
 
-get_remote_data([], Params) -> #emxcontent{};
+get_remote_data([], _Params) -> #emxcontent{};
 get_remote_data([Node | T], Params) ->
     ?LOG(debug, "Trying ~p", [Node]),
     Res = rpc:call(Node, emx_data, get_data, Params),
@@ -479,7 +486,7 @@ get_remote_data([Node | T], Params) ->
       {datainfo, Resp} -> Resp
     end.
 
-get_remote_keys([], Params) -> {0, []};
+get_remote_keys([], _Params) -> {0, []};
 get_remote_keys([Node | T], Params) ->
     ?LOG(debug, "Trying ~p", [Node]),
     Res = rpc:call(Node, emx_data, get_datakeys, Params),
