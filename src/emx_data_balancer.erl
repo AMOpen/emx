@@ -84,7 +84,7 @@ processBalanceNode(ConfigHandle, TableInfo, true, _) ->
 	util_data:get_size(TableInfo#emxstoreconfig.tableid),
     Type =
 	util_data:get_type(TableInfo#emxstoreconfig.tableid),
-    case {Size > 500, Type} of
+    case {Size > 50000, Type} of
       {true, ets} ->
 	  ?LOG(debug,
 	       "Converting memory table to disk table "
