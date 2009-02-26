@@ -27,7 +27,6 @@ put_data(Server, Port, Key, Data) ->
 	      {"xmlencode", base64:encode_to_string(Data)}],
     Url = util_string:format("http://~s:~p/emx/put",
 			     [Server, Port]),
-    io:format("Url is ~s~n", [Url]),
     post(Url, "alan", "fred", Params).
 
 get_data(Server, Port, Key) -> nothing.
