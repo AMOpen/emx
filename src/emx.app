@@ -2,7 +2,7 @@
 %% application.
 {application, emx,
  [{description, "EMX XML Cache"},
-  {vsn, "1.0"},
+  {vsn, "1.1"},
   {modules, []},
   {registered,[]},
   {applications, [kernel,stdlib]},
@@ -11,7 +11,7 @@
 	{logsize, 5000000 },
 	{logtags, [debug, info, error]},
 	{datadir, 'c:\\clouddata' },
-	{webhost, localhost },
+	{webhost, 'alan-moores-imac-2.local' },
 	{webport, 8665 },
 	{weblogdir, 'c:\\clouddata'},
 	{emxconfig, {ets, [{keypos, 2}]}},
@@ -22,9 +22,7 @@
 		[{keypos, 2}], 
 		undefined, 
 		[ { records, 20000 }, {age, 1200}, {archive, 180}, { size, 50000000}],
-		0,
-		system }},
-	{nodes, [emx1@localhost, emx2@localhost, emx3@localhost] },
+		0 }},
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},

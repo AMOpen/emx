@@ -11,13 +11,13 @@ test() ->
 			  run_for(util_string:format("official/system.~p",
 						     [Id]))
 		  end,
-		  lists:seq(0, 100)).
+		  lists:seq(0, 10)).
 
 run_for(Prefix) ->
     lists:foreach(fun (Id) ->
-			  emx_http:put_data(util_string:format("~s/~p",
+			  emx_http:put_data("alan-moores-imac-2.local", 8665, util_string:format("~s/~p",
 							       [Prefix, Id]),
 					    util_string:format("<data>~p</data>",
 							       [Id]))
 		  end,
-		  lists:seq(0, 100)).
+		  lists:seq(0, 10)).
