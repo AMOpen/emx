@@ -1,3 +1,5 @@
 EMX is a key/value repository written in Erlang. All interaction is through an HTTP api.
 
 Data is normally stored in ets tables compressed but the content will also be written out to disk after a defined amount of time to keep the cache lightweight. In the same vein data will be removed from the cache if it is old or if the memory used by a table in the cache exceeds a defined limit.
+
+This is the multiple node branch, possibly defunct
