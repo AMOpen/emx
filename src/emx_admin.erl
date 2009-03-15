@@ -138,7 +138,8 @@ handle_call({housekeep}, _From, N) ->
 	  lists:foreach(fun (Table) ->
 				?LOG(debug, "Housekeep for ~p",
 				     [Table#emxstoreconfig.typename]),
-				emx_data:run_capacity(Table#emxstoreconfig.typename)
+				emx_data:run_capacity(Table#emxstoreconfig.typename),
+				emx_data:run_balancer(Table#emxstoreconfig.typename)
 			end,
 			emx_data:get_tables())
     end,

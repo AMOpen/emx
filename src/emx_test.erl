@@ -1,23 +1,23 @@
 -module(emx_test).
 
--export([test/2]).
+-export([test/0]).
 
 -include_lib("emx.hrl").
 
-test(Count, Count2) ->
+test() ->
     application:start(emx),
     lists:foreach(fun (Id) ->
 			  io:format("Running for ~p~n", [Id]),
-			  run_for(Count2, util_string:format("official/system.~p",
+			  run_for(util_string:format("official/system.~p",
 						     [Id]))
 		  end,
-		  lists:seq(0, Count)).
+		  lists:seq(0, 100)).
 
-run_for(Count2, Prefix) ->
+run_for(Prefix) ->
     lists:foreach(fun (Id) ->
-			  emx_admin:put_data(util_string:format("~s/~p",
+			  emx_http:put_data(util_string:format("~s/~p",
 							       [Prefix, Id]),
 					    util_string:format("<data>~p</data>",
 							       [Id]))
 		  end,
-		  lists:seq(0, Count2)).
+		  lists:seq(0, 100)).

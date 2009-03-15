@@ -28,8 +28,7 @@ put_data(Server, Port, Key, Data) ->
     Url = util_string:format("http://~s:~p/emx/put",
 			     [Server, Port]),
     io:format("Url is ~s~n", [Url]),
-    Res = post(Url, "alan", "fred", Params),
-    io:format("Response is ~p~n", [ Res]).
+    post(Url, "alan", "fred", Params).
 
 get_data(Server, Port, Key) -> nothing.
 
