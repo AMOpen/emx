@@ -12,7 +12,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, start_link/1, terminate/2]).
 
--export([add_remote_table/1, create_local_table/1,
+-export([add_remote_table/1, create_local_table/1, get_config_handle/0,
 	 get_data/2, get_datakeys/2, get_tables/0, put_data/3,
 	 run_balancer/1, run_capacity/1, update_constraints/2,
 	 update_table_info/3]).
@@ -114,6 +114,9 @@ terminate(_Reason, ConfigHandle) ->
 
 code_change(_OldVsn, N, _Extra) -> {ok, N}.
 
+get_config_handle() ->
+    gen_server:call(?GD2, {getConfigHandle}, infinity).
+    
 put_data(TableId, Data, local) ->
     gen_server:call(?GD2, {putData, TableId, Data},
 		    infinity);
@@ -156,6 +159,10 @@ run_balancer(TableId) when is_atom(TableId) ->
 run_balancer(TableId) when is_list(TableId) -> null.
 
 %%
+
+handle_call({getConfigHandle}, _From, ConfigHandle) ->
+    {reply, ConfigHandle, ConfigHandle};
+    
 handle_call({putData, TableId, Data}, _From,
 	    ConfigHandle) ->
     util_check:check_message_queue(),
