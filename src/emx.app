@@ -1,7 +1,7 @@
 %% This is the application resource file (.app file) for the 'base'
 %% application.
 {application, emx,
- [{description, "EMX XML Cache"},
+ [{description, "EMX Cache"},
   {vsn, "1.0"},
   {modules, []},
   {registered,[]},
@@ -10,10 +10,10 @@
    	{logdir, '~s'},
 	{logsize, 5000000 },
 	{logtags, [debug, info, error]},
-	{datadir, 'c:\\clouddata' },
+	{datadir, 'data' },
 	{webhost, localhost },
 	{webport, 8665 },
-	{weblogdir, 'c:\\clouddata'},
+	{weblogdir, 'data'},
 	{emxconfig, {ets, [{keypos, 2}]}},
 	{defaultstore, { 
 		emxstoreconfig, 
@@ -24,7 +24,7 @@
 		[ { records, 20000 }, {age, 1200}, {archive, 180}, { size, 50000000}],
 		0,
 		system }},
-	{nodes, [emx1@localhost, emx2@localhost, emx3@localhost] },
+	{nodes, [emx1@localhost] },
 	{setupstore, true }
 	]},
   {mod, {emx_app,[]}},
